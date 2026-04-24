@@ -14,6 +14,7 @@ WORKSPACE_RUNTIME_DEPENDENCIES = [
     "httpx>=0.27,<1",
     "msgpack>=1,<2",
     "pydantic>=2.8,<3",
+    "python-dotenv>=1,<2",
     "PyYAML>=6,<7",
     "pytest>=8.3,<9",
     "rich>=13.7,<14",
@@ -103,7 +104,7 @@ def render_agents_md(*, site_module: str, cli_name: str, command_root: str = "co
 - CLI help: `{cli_name} --help` or `python -m {site_module} --help`
 - Command help: `{cli_name} <command path> --help`
 - Contract tests: `python -m pytest -q {command_root}/<command_id>/tests/test_command.py`
-- Live authenticated runs can use `AUTOCLI_LIVE_CURL=@/path/to/request.curl`
+- Live authenticated runs can use `PLAYWRIGHT_HEADERS_JSON={{...}}` in `.env`
 
 ## Deliverables
 - Functional processor implementations.

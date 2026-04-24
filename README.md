@@ -66,15 +66,12 @@ python -m pip install -e .
 python -m <site_module> --help
 ```
 
-9. Execute the command live when needed. If authentication is required, provide temporary session headers only for the run and do not persist them:
+9. Execute the command live when needed. If authentication is required, provide a Playwright `request.allHeaders()` JSON blob in `PLAYWRIGHT_HEADERS_JSON`. The generated runtime automatically loads `.env` from the workspace root; a shell environment variable with the same name wins over `.env`.
 
 ```bash
 cd /absolute/path/to/workspace
-AUTOCLI_LIVE_CURL='curl -H '\''cookie: ...'\'' -H '\''x-csrf-token: ...'\'' '\''https://example.com/request/url'\''' python -m <site_module> <command path and args>
-AUTOCLI_LIVE_CURL='curl -H '\''cookie: ...'\'' -H '\''x-csrf-token: ...'\'' '\''https://example.com/request/url'\''' python -m <site_module> <command path and args> --raw
-
-# safer for copied browser curl commands that contain `$` in cookies:
-AUTOCLI_LIVE_CURL=@/absolute/path/to/request.curl python -m <site_module> <command path and args>
+PLAYWRIGHT_HEADERS_JSON='{"url":"https://example.com/xhr","method":"GET","resourceType":"xhr","capturedAt":"2026-04-24T20:46:23.572Z","headers":{"cookie":"...","x-xsrf-token":"..."}}' python -m <site_module> <command path and args>
+PLAYWRIGHT_HEADERS_JSON='{"url":"https://example.com/xhr","method":"GET","resourceType":"xhr","capturedAt":"2026-04-24T20:46:23.572Z","headers":{"cookie":"...","x-xsrf-token":"..."}}' python -m <site_module> <command path and args> --raw
 ```
 
 Done means:

@@ -16,6 +16,7 @@ dependencies = [
   "mitmproxy>=11,<12",
   "msgpack>=1,<2",
   "pydantic>=2.8,<3",
+  "python-dotenv>=1,<2",
   "PyYAML>=6,<7",
   "rich>=13.7,<14",
   "typer>=0.16,<1",

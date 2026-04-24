@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import subprocess
 import sys
 import threading
@@ -272,21 +271,22 @@ def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path
         assert "cart" in help_result.stdout
         assert "reason=incomplete" not in help_result.stderr
 
-        env = {
-            "AUTOCLI_LIVE_CURL": " ".join(
-                shlex.quote(part)
-                for part in [
-                    "curl",
-                    "-H",
-                    "x-session: token-123",
-                    "-H",
-                    "cookie: foo=bar",
-                    "-H",
-                    "cookie: baz=qux",
-                    f"{base_url}/epood/cart/change/789?format=json",
-                ]
-            )
+        playwright_headers = {
+            "url": f"{base_url}/some/other/xhr",
+            "method": "GET",
+            "resourceType": "xhr",
+            "capturedAt": "2026-04-24T20:46:23.572Z",
+            "headers": {
+                ":authority": "ignored.example.com",
+                ":method": "GET",
+                ":path": "/some/other/xhr",
+                ":scheme": "https",
+                "accept": "text/html",
+                "cookie": "foo=bar; baz=qux",
+                "x-xsrf-token": "token-123",
+            },
         }
+        env = {"PLAYWRIGHT_HEADERS_JSON": json.dumps(playwright_headers, separators=(",", ":"))}
         live_result = run_module(
             workspace,
             module_name,
@@ -304,8 +304,10 @@ def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path
         assert server.requests[-1]["path"] == "/epood/cart/change/789"
         assert server.requests[-1]["query"] == {"format": ["json"]}
         assert server.requests[-1]["body"] == {"delta": 3, "mode": "soft"}
-        assert server.requests[-1]["headers"]["x-session"] == "token-123"
+        assert server.requests[-1]["headers"]["x-xsrf-token"] == "token-123"
         assert server.requests[-1]["headers"]["cookie"] == "foo=bar; baz=qux"
+        assert server.requests[-1]["headers"]["accept"] == "application/json"
+        assert ":authority" not in server.requests[-1]["headers"]
 
         raw_result = run_module(
             workspace,
@@ -330,7 +332,7 @@ def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path
         server.stop()
 
 
-def test_generated_runtime_accepts_live_curl_from_file(tmp_path: Path) -> None:
+def test_generated_runtime_loads_playwright_headers_from_dotenv_with_shell_override(tmp_path: Path) -> None:
     server = EchoCartServer()
     server.start()
     try:
@@ -364,19 +366,18 @@ def test_generated_runtime_accepts_live_curl_from_file(tmp_path: Path) -> None:
         pytest_result = run_workspace_pytest(workspace, command_dir / "tests" / "test_command.py")
         assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
 
-        curl_file = workspace / "request.curl"
-        curl_file.write_text(
-            " ".join(
-                shlex.quote(part)
-                for part in [
-                    "curl",
-                    "-H",
-                    "x-session: token-from-file",
-                    "-H",
-                    "cookie: foo=bar",
-                    f"{base_url}/epood/cart/change/789?format=json",
-                ]
-            ),
+        dotenv_headers = {
+            "url": f"{base_url}/checkout/xhr",
+            "method": "GET",
+            "resourceType": "xhr",
+            "capturedAt": "2026-04-24T20:46:23.572Z",
+            "headers": {
+                "cookie": "from=dotenv",
+                "x-xsrf-token": "token-from-dotenv",
+            },
+        }
+        (workspace / ".env").write_text(
+            "PLAYWRIGHT_HEADERS_JSON=" + json.dumps(dotenv_headers, separators=(",", ":")) + "\n",
             encoding="utf-8",
         )
 
@@ -384,7 +385,6 @@ def test_generated_runtime_accepts_live_curl_from_file(tmp_path: Path) -> None:
             workspace,
             module_name,
             ["cart", "change", "789", "--format", "json", "--delta", "3"],
-            env={"AUTOCLI_LIVE_CURL": f"@{curl_file}"},
         )
         assert live_result.returncode == 0, live_result.stderr
         assert json.loads(live_result.stdout) == {
@@ -393,8 +393,28 @@ def test_generated_runtime_accepts_live_curl_from_file(tmp_path: Path) -> None:
             "id": "789",
             "mode": "soft",
         }
-        assert server.requests[-1]["headers"]["x-session"] == "token-from-file"
-        assert server.requests[-1]["headers"]["cookie"] == "foo=bar"
+        assert server.requests[-1]["headers"]["x-xsrf-token"] == "token-from-dotenv"
+        assert server.requests[-1]["headers"]["cookie"] == "from=dotenv"
+
+        shell_headers = {
+            "url": f"{base_url}/checkout/xhr",
+            "method": "GET",
+            "resourceType": "xhr",
+            "capturedAt": "2026-04-24T20:46:23.572Z",
+            "headers": {
+                "cookie": "from=shell",
+                "x-xsrf-token": "token-from-shell",
+            },
+        }
+        live_result = run_module(
+            workspace,
+            module_name,
+            ["cart", "change", "789", "--format", "json", "--delta", "3"],
+            env={"PLAYWRIGHT_HEADERS_JSON": json.dumps(shell_headers, separators=(",", ":"))},
+        )
+        assert live_result.returncode == 0, live_result.stderr
+        assert server.requests[-1]["headers"]["x-xsrf-token"] == "token-from-shell"
+        assert server.requests[-1]["headers"]["cookie"] == "from=shell"
     finally:
         server.stop()
 

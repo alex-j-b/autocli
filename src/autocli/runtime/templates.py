@@ -53,8 +53,6 @@ def render_runtime_module(site_slug: str) -> str:
         import keyword
         import os
         import re
-        import shlex
-        import subprocess
         import sys
         import tomllib
         import urllib.parse
@@ -67,9 +65,19 @@ def render_runtime_module(site_slug: str) -> str:
         import msgpack
         import typer
         import yaml
+        from dotenv import load_dotenv
         from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
-        AUTOCLI_LIVE_CURL_ENV = "AUTOCLI_LIVE_CURL"
+        PLAYWRIGHT_HEADERS_JSON_ENV = "PLAYWRIGHT_HEADERS_JSON"
+        SESSION_SENSITIVE_HEADER_NAMES = {
+            "authorization",
+            "cookie",
+            "csrf-token",
+            "x-csrf-token",
+            "x-requested-with",
+            "x-xsrf-token",
+            "xsrf-token",
+        }
 
         type JsonScalar = str | int | float | bool | None
         type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
@@ -558,6 +566,7 @@ def render_runtime_module(site_slug: str) -> str:
         def build_app(workspace_root: Path) -> typer.Typer:
             \"\"\"Build the generated site CLI app.\"\"\"
 
+            load_dotenv(workspace_root / ".env", override=False)
             settings = load_workspace_settings(workspace_root)
             app = typer.Typer(
                 add_completion=False,
@@ -1152,79 +1161,39 @@ def render_runtime_module(site_slug: str) -> str:
 
 
         def load_live_header_overrides() -> dict[str, str]:
-            \"\"\"Load late-bound live-session headers from a curl command in the environment.\"\"\"
+            \"\"\"Load late-bound live-session headers from a Playwright request dump.\"\"\"
 
-            raw = load_live_curl_source()
+            raw = os.environ.get(PLAYWRIGHT_HEADERS_JSON_ENV)
             if not raw:
                 return {}
-            return parse_curl_header_overrides(raw)
+            return parse_playwright_header_overrides(raw)
 
 
-        def load_live_curl_source() -> str | None:
-            \"\"\"Load the raw curl command from the environment or a referenced file.\"\"\"
-
-            raw = os.environ.get(AUTOCLI_LIVE_CURL_ENV)
-            if not raw:
-                return None
-            if raw.startswith("@"):
-                path = Path(raw[1:]).expanduser()
-                return path.read_text(encoding="utf-8")
-            return raw
-
-
-        def parse_curl_header_overrides(raw: str) -> dict[str, str]:
-            \"\"\"Extract request headers from a curl command string.\"\"\"
+        def parse_playwright_header_overrides(raw: str) -> dict[str, str]:
+            \"\"\"Extract session-sensitive headers from Playwright request.allHeaders() JSON.\"\"\"
 
             try:
-                tokens = shlex.split(raw, posix=True)
-            except ValueError as exc:
-                raise ValueError(f"{AUTOCLI_LIVE_CURL_ENV} must be a valid curl command") from exc
+                payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} must be a valid JSON object") from exc
 
-            if not tokens:
-                raise ValueError(f"{AUTOCLI_LIVE_CURL_ENV} must not be empty")
-            if tokens[0] != "curl":
-                raise ValueError(f"{AUTOCLI_LIVE_CURL_ENV} must start with 'curl'")
-
-            grouped_headers: dict[str, list[str]] = defaultdict(list)
-            index = 1
-            while index < len(tokens):
-                token = tokens[index]
-                header_value: str | None = None
-
-                if token in {"-H", "--header"}:
-                    if index + 1 >= len(tokens):
-                        raise ValueError(f"{AUTOCLI_LIVE_CURL_ENV} has header option without a value")
-                    header_value = tokens[index + 1]
-                    index += 2
-                elif token.startswith("--header="):
-                    header_value = token.split("=", 1)[1]
-                    index += 1
-                else:
-                    index += 1
-                    continue
-
-                name, value = split_curl_header(header_value)
-                grouped_headers[name.lower()].append(value)
+            if not isinstance(payload, dict):
+                raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} must be a JSON object")
+            headers = payload.get("headers")
+            if not isinstance(headers, dict):
+                raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} must contain a headers object")
 
             overrides: dict[str, str] = {}
-            for name, values in grouped_headers.items():
-                if name == "cookie":
-                    overrides[name] = "; ".join(value.strip() for value in values if value.strip())
-                else:
-                    overrides[name] = ", ".join(value.strip() for value in values if value.strip())
+            for name, value in headers.items():
+                header_name = str(name).lower()
+                if header_name.startswith(":"):
+                    continue
+                if header_name not in SESSION_SENSITIVE_HEADER_NAMES:
+                    continue
+                if not isinstance(value, str):
+                    raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} header {header_name!r} must be a string")
+                overrides[header_name] = value
             return overrides
-
-
-        def split_curl_header(header: str) -> tuple[str, str]:
-            \"\"\"Split one curl header argument into name and value.\"\"\"
-
-            if ":" not in header:
-                raise ValueError(f"{AUTOCLI_LIVE_CURL_ENV} header is missing ':' separator: {header!r}")
-            name, value = header.split(":", 1)
-            name = name.strip()
-            if not name:
-                raise ValueError(f"{AUTOCLI_LIVE_CURL_ENV} header name must not be empty")
-            return (name, value.lstrip())
 
 
         def serialize_request_body(content_type: str | None, body: Any) -> bytes | None:
