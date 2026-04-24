@@ -91,8 +91,13 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
             ),
             make_exchange(
                 "PUT",
-                "https://shop.example.com/epood/cart/change/456?format=table&lang=en",
-                request_headers={"Content-Type": "application/json", "Accept": "application/json"},
+                "https://shop.example.com/epood/cart/change/456?format=table&lang=en&include=totals",
+                request_headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Cookie": "session=secret",
+                    "X-XSRF-Token": "token-123",
+                },
                 request_body=b'{"delta": 2, "mode": "soft"}',
                 source_id="2",
             ),
@@ -136,14 +141,20 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     validated_command = CommandFileModel.model_validate(command_file)
     assert validated_command.command.cli_path == ["cart", "change"]
     assert validated_command.command.fixtures[0].id == "cart_change_001"
-    assert validated_command.command.goldens[1].path == "goldens/cart_change_002.json"
+    assert len(validated_command.command.fixtures) == 1
+    assert validated_command.command.goldens[0].path == "goldens/cart_change_001.json"
+    assert "cookie" not in {header.lower() for header in validated_command.command.request.headers}
+    assert "x-xsrf-token" not in {header.lower() for header in validated_command.command.request.headers}
 
     fixture_dir = command_dir / "fixtures" / "cart_change_001"
-    FixtureRequestFileModel.model_validate(json.loads((fixture_dir / "request.json").read_text(encoding="utf-8")))
+    request = FixtureRequestFileModel.model_validate(json.loads((fixture_dir / "request.json").read_text(encoding="utf-8")))
     FixtureResponseFileModel.model_validate(json.loads((fixture_dir / "response.json").read_text(encoding="utf-8")))
     meta = FixtureMetaFileModel.model_validate(json.loads((fixture_dir / "meta.json").read_text(encoding="utf-8")))
     assert meta.raw_ref == "raw/cart_change_001.flow"
-    assert (fixture_dir / "request.body").read_bytes() == b'{"delta": 1, "mode": "soft"}'
+    assert request.url == "https://shop.example.com/epood/cart/change/456?format=table&lang=en&include=totals"
+    assert "cookie" not in {header.lower() for header in request.headers}
+    assert "x-xsrf-token" not in {header.lower() for header in request.headers}
+    assert (fixture_dir / "request.body").read_bytes() == b'{"delta": 2, "mode": "soft"}'
     assert (fixture_dir / "response.body").read_bytes() == b'{"ok": true}'
     assert (command_dir / "raw" / "cart_change_001.flow").exists()
     assert (command_dir / "goldens").is_dir()
@@ -190,7 +201,7 @@ def test_bootstrap_workspace_is_append_only_on_rerun(tmp_path: Path) -> None:
     assert result["skipped_command_ids"] == ["get__h_shop_example_com__s_api__s_products__p_p1"]
     assert any("get__h_shop_example_com__s_api__s_products__p_p1" in warning for warning in result["warnings"])
     assert pre_stub.read_text(encoding="utf-8") == "custom pre-processor\n"
-    assert len(list((existing_command_dir / "fixtures").iterdir())) == 2
+    assert len(list((existing_command_dir / "fixtures").iterdir())) == 1
     assert (workspace / "AGENTS.md").exists()
     assert (
         workspace / "commands" / "get__h_shop_example_com__s_api__s_inventory__p_p1__s_full" / "command.yaml"

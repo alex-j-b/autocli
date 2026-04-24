@@ -8,6 +8,17 @@ from typing import Any
 
 from autocli.capture.normalize import decode_body_bytes
 
+SESSION_SENSITIVE_HEADER_NAMES = {
+    "authorization",
+    "cookie",
+    "csrf-token",
+    "x-csrf-token",
+    "x-requested-with",
+    "x-xsrf-token",
+    "xsrf-token",
+}
+SESSION_SENSITIVE_HEADER_SUBSTRINGS = ("auth", "csrf", "session", "token")
+
 
 def compile_command_candidates(exchanges: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Compile normalized accepted exchanges into command candidates."""
@@ -27,7 +38,7 @@ def infer_command_schema(grouped_exchange: dict[str, Any]) -> dict[str, Any]:
         parse_string_values=True,
     )
     headers_schema = infer_object_schema(
-        [coerce_scalar_mapping(sample["request"]["headers"]) for sample in samples],
+        [coerce_scalar_mapping(strip_session_sensitive_headers(sample["request"]["headers"])) for sample in samples],
         parse_string_values=False,
     )
 
@@ -214,9 +225,30 @@ def base_request_headers(samples: list[dict[str, Any]]) -> dict[str, Any]:
     """Build a literal base header set for the request template."""
 
     representative_headers = dict(samples[0]["request"]["headers"])
-    for blocked_header in ("content-length", "cookie", "host"):
+    for blocked_header in ("content-length", "host"):
         representative_headers.pop(blocked_header, None)
-    return representative_headers
+    return {
+        name: value
+        for name, value in representative_headers.items()
+        if not is_session_sensitive_header(name)
+    }
+
+
+def strip_session_sensitive_headers(headers: dict[str, Any]) -> dict[str, Any]:
+    """Remove headers that are supplied only through PLAYWRIGHT_HEADERS_JSON."""
+
+    return {name: value for name, value in headers.items() if not is_session_sensitive_header(name)}
+
+
+def is_session_sensitive_header(header_name: str) -> bool:
+    """Return whether a header should be supplied only through PLAYWRIGHT_HEADERS_JSON."""
+
+    normalized = header_name.lower()
+    if normalized in SESSION_SENSITIVE_HEADER_NAMES:
+        return True
+    if normalized.startswith("sec-"):
+        return True
+    return any(token in normalized for token in SESSION_SENSITIVE_HEADER_SUBSTRINGS)
 
 
 def infer_object_schema(samples: list[dict[str, Any]], *, parse_string_values: bool) -> dict[str, Any]:

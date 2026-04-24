@@ -53,8 +53,10 @@ python -m autocli build /absolute/path/to/capture.flow --output-dir /absolute/pa
 
 ```bash
 cd /absolute/path/to/workspace
-python -m pytest commands/<command-id>/tests/test_command.py -q
+PLAYWRIGHT_HEADERS_JSON='{"headers":{}}' python -m pytest commands/<command-id>/tests/test_command.py -q
 ```
+
+Generated tests remain offline: they replay fixture responses instead of making network calls. They still require `PLAYWRIGHT_HEADERS_JSON` so the same late-bound session-header path is exercised during tests and live runs. Use `{"headers":{}}` only when no session-sensitive headers are needed.
 
 That test run marks the command complete on success and incomplete on failure, which controls whether the command is registered in the generated CLI.
 
@@ -73,6 +75,20 @@ cd /absolute/path/to/workspace
 PLAYWRIGHT_HEADERS_JSON='{"url":"https://example.com/xhr","method":"GET","resourceType":"xhr","capturedAt":"2026-04-24T20:46:23.572Z","headers":{"cookie":"...","x-xsrf-token":"..."}}' python -m <site_module> <command path and args>
 PLAYWRIGHT_HEADERS_JSON='{"url":"https://example.com/xhr","method":"GET","resourceType":"xhr","capturedAt":"2026-04-24T20:46:23.572Z","headers":{"cookie":"...","x-xsrf-token":"..."}}' python -m <site_module> <command path and args> --raw
 ```
+
+## Generated Fixture Shape
+
+Each generated command keeps one representative fixture, chosen from the captured samples by longest URL with first-captured as the tie-breaker. This favors URLs with more query/path coverage while keeping one approved golden per command.
+
+Fixture cases live under `commands/<command-id>/fixtures/<case-id>/` and intentionally split metadata from raw bodies:
+
+- `request.json`: request method, full URL, path, query, and non-session headers
+- `request.body`: raw request body bytes
+- `response.json`: response status and headers
+- `response.body`: raw response body bytes
+- `meta.json`: command id, capture timestamp, raw artifact reference, and flow id
+
+Request and response bodies stay in separate byte files because they may be binary, compressed, empty, or encoded independently of the JSON metadata. Session-sensitive request headers are not persisted in fixtures or command templates; provide them at test or live runtime through `PLAYWRIGHT_HEADERS_JSON`.
 
 Done means:
 

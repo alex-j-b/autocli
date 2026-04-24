@@ -21,6 +21,17 @@ from autocli.scaffold.render import (
     render_workspace_pyproject,
 )
 
+SESSION_SENSITIVE_HEADER_NAMES = {
+    "authorization",
+    "cookie",
+    "csrf-token",
+    "x-csrf-token",
+    "x-requested-with",
+    "x-xsrf-token",
+    "xsrf-token",
+}
+SESSION_SENSITIVE_HEADER_SUBSTRINGS = ("auth", "csrf", "session", "token")
+
 
 def bootstrap_workspace(output_dir: Path, *, compiled_commands: list[dict[str, Any]]) -> dict[str, Any]:
     """Bootstrap or extend a generated workspace."""
@@ -222,7 +233,7 @@ def write_command_tree(output_dir: Path, config: dict[str, Any], command: dict[s
 def build_case_payloads(command: dict[str, Any]) -> list[dict[str, Any]]:
     """Build fixture/raw/golden payload metadata for one command."""
 
-    samples = list(command.get("samples", []))
+    samples = select_fixture_samples(list(command.get("samples", [])))
     case_base = case_id_base(command["cli_path"])
     cases: list[dict[str, Any]] = []
     for index, sample in enumerate(samples, start=1):
@@ -235,7 +246,7 @@ def build_case_payloads(command: dict[str, Any]) -> list[dict[str, Any]]:
             "url": sample["request"]["url"],
             "path": sample["request"]["path"],
             "query": sample["request"]["query"],
-            "headers": sample["request"]["headers"],
+            "headers": strip_session_sensitive_headers(sample["request"]["headers"]),
         }
         response_json = {
             "status": sample["response"]["status"],
@@ -267,6 +278,14 @@ def build_case_payloads(command: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return cases
+
+
+def select_fixture_samples(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Select the single fixture sample with the longest URL, preserving capture order for ties."""
+
+    if not samples:
+        return []
+    return [max(samples, key=lambda sample: len(str(sample["request"]["url"])))]
 
 
 def build_command_file_payload(command: dict[str, Any], cases: list[dict[str, Any]]) -> dict[str, Any]:
@@ -302,6 +321,23 @@ def case_id_base(cli_path: list[str]) -> str:
 
     tokens = [segment.replace("-", "_") for segment in cli_path if segment]
     return "_".join(tokens)
+
+
+def strip_session_sensitive_headers(headers: dict[str, Any]) -> dict[str, Any]:
+    """Remove headers that must be supplied through PLAYWRIGHT_HEADERS_JSON at runtime."""
+
+    return {name: value for name, value in headers.items() if not is_session_sensitive_header(name)}
+
+
+def is_session_sensitive_header(header_name: str) -> bool:
+    """Return whether a header should never be persisted in generated fixtures."""
+
+    normalized = header_name.lower()
+    if normalized in SESSION_SENSITIVE_HEADER_NAMES:
+        return True
+    if normalized.startswith("sec-"):
+        return True
+    return any(token in normalized for token in SESSION_SENSITIVE_HEADER_SUBSTRINGS)
 
 
 def write_raw_artifact(path: Path, sample: dict[str, Any]) -> None:

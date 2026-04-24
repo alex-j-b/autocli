@@ -16,6 +16,8 @@ from autocli.capture import normalize_exchange
 from autocli.compiler.schema import compile_command_candidates
 from autocli.scaffold import bootstrap_workspace
 
+EMPTY_PLAYWRIGHT_HEADERS_JSON = json.dumps({"headers": {}}, separators=(",", ":"))
+
 
 def make_exchange(
     method: str,
@@ -70,13 +72,20 @@ def run_module(workspace: Path, module_name: str, args: list[str], *, env: dict[
     )
 
 
-def run_workspace_pytest(workspace: Path, target: Path) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(workspace) + os.pathsep + env.get("PYTHONPATH", "")
+def run_workspace_pytest(
+    workspace: Path,
+    target: Path,
+    *,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    command_env = os.environ.copy()
+    command_env["PYTHONPATH"] = str(workspace) + os.pathsep + command_env.get("PYTHONPATH", "")
+    if extra_env:
+        command_env.update(extra_env)
     return subprocess.run(
         [sys.executable, "-m", "pytest", str(target), "-q"],
         cwd=workspace,
-        env=env,
+        env=command_env,
         capture_output=True,
         text=True,
     )
@@ -230,6 +239,26 @@ def test_generated_runtime_treats_missing_complete_flag_as_legacy_available(tmp_
     assert "products" in help_result.stdout
 
 
+def test_generated_runtime_fixture_tests_require_playwright_headers_json(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    result = build_workspace(
+        workspace,
+        [
+            make_exchange("GET", "https://shop.example.com/api/products/123", source_id="1", response_body=b'{"id":"123"}'),
+            make_exchange("GET", "https://shop.example.com/api/products/456", source_id="2", response_body=b'{"id":"456"}'),
+        ],
+    )
+
+    command_dir = workspace / "commands" / result["created_command_ids"][0]
+    install_json_processors_and_goldens(command_dir, output_fields=["id"])
+
+    pytest_result = run_workspace_pytest(workspace, command_dir / "tests" / "test_command.py")
+
+    assert pytest_result.returncode != 0
+    assert "PLAYWRIGHT_HEADERS_JSON is required for generated fixture tests" in pytest_result.stdout + pytest_result.stderr
+    assert read_command_complete(command_dir) is False
+
+
 def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path: Path) -> None:
     server = EchoCartServer()
     server.start()
@@ -262,7 +291,11 @@ def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path
         command_dir = workspace / "commands" / result["created_command_ids"][0]
         install_json_processors_and_goldens(command_dir, output_fields=["id", "format", "delta", "mode"])
 
-        pytest_result = run_workspace_pytest(workspace, command_dir / "tests" / "test_command.py")
+        pytest_result = run_workspace_pytest(
+            workspace,
+            command_dir / "tests" / "test_command.py",
+            extra_env={"PLAYWRIGHT_HEADERS_JSON": EMPTY_PLAYWRIGHT_HEADERS_JSON},
+        )
         assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
         assert read_command_complete(command_dir) is True
 
@@ -363,7 +396,11 @@ def test_generated_runtime_loads_playwright_headers_from_dotenv_with_shell_overr
         module_name = str(result["site_module"])
         command_dir = workspace / "commands" / result["created_command_ids"][0]
         install_json_processors_and_goldens(command_dir, output_fields=["id", "format", "delta", "mode"])
-        pytest_result = run_workspace_pytest(workspace, command_dir / "tests" / "test_command.py")
+        pytest_result = run_workspace_pytest(
+            workspace,
+            command_dir / "tests" / "test_command.py",
+            extra_env={"PLAYWRIGHT_HEADERS_JSON": EMPTY_PLAYWRIGHT_HEADERS_JSON},
+        )
         assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
 
         dotenv_headers = {
@@ -436,7 +473,11 @@ def test_generated_runtime_rejects_duplicate_cli_paths_after_validation(tmp_path
     for command_dir in command_dirs:
         install_json_processors_and_goldens(command_dir, output_fields=["id"])
         rewrite_cli_path(command_dir, ["dup"])
-        pytest_result = run_workspace_pytest(workspace, command_dir / "tests" / "test_command.py")
+        pytest_result = run_workspace_pytest(
+            workspace,
+            command_dir / "tests" / "test_command.py",
+            extra_env={"PLAYWRIGHT_HEADERS_JSON": EMPTY_PLAYWRIGHT_HEADERS_JSON},
+        )
         assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
 
     help_result = run_module(workspace, module_name, ["--help"])

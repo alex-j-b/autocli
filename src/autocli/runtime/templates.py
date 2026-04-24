@@ -78,6 +78,7 @@ def render_runtime_module(site_slug: str) -> str:
             "x-xsrf-token",
             "xsrf-token",
         }
+        SESSION_SENSITIVE_HEADER_SUBSTRINGS = ("auth", "csrf", "session", "token")
 
         type JsonScalar = str | int | float | bool | None
         type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
@@ -851,6 +852,7 @@ def render_runtime_module(site_slug: str) -> str:
             if fixture_id is None:
                 perform_live_request(context)
             else:
+                apply_live_header_overrides(context, required=True)
                 replay_fixture_response(command_dir, command_file, fixture_id, context)
 
             context = ProcessorContextModel.model_validate(context).model_dump(mode="python")
@@ -1135,9 +1137,9 @@ def render_runtime_module(site_slug: str) -> str:
 
             request = context["request"]
             render_request_target(request)
+            apply_live_header_overrides(context, required=False)
 
             headers = dict(request["headers"])
-            headers.update(load_live_header_overrides())
             payload = serialize_request_body(first_mapping_value(headers, "content-type"), request.get("body"))
 
             with httpx.Client(follow_redirects=True) as client:
@@ -1160,11 +1162,19 @@ def render_runtime_module(site_slug: str) -> str:
             }
 
 
-        def load_live_header_overrides() -> dict[str, str]:
+        def apply_live_header_overrides(context: dict[str, Any], *, required: bool) -> None:
+            \"\"\"Merge late-bound session headers into the request context.\"\"\"
+
+            context["request"]["headers"].update(load_live_header_overrides(required=required))
+
+
+        def load_live_header_overrides(*, required: bool = False) -> dict[str, str]:
             \"\"\"Load late-bound live-session headers from a Playwright request dump.\"\"\"
 
             raw = os.environ.get(PLAYWRIGHT_HEADERS_JSON_ENV)
             if not raw:
+                if required:
+                    raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} is required for generated fixture tests")
                 return {}
             return parse_playwright_header_overrides(raw)
 
@@ -1188,12 +1198,23 @@ def render_runtime_module(site_slug: str) -> str:
                 header_name = str(name).lower()
                 if header_name.startswith(":"):
                     continue
-                if header_name not in SESSION_SENSITIVE_HEADER_NAMES:
+                if not is_session_sensitive_header(header_name):
                     continue
                 if not isinstance(value, str):
                     raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} header {header_name!r} must be a string")
                 overrides[header_name] = value
             return overrides
+
+
+        def is_session_sensitive_header(header_name: str) -> bool:
+            \"\"\"Return whether a header should be supplied only at runtime.\"\"\"
+
+            normalized = header_name.lower()
+            if normalized in SESSION_SENSITIVE_HEADER_NAMES:
+                return True
+            if normalized.startswith("sec-"):
+                return True
+            return any(token in normalized for token in SESSION_SENSITIVE_HEADER_SUBSTRINGS)
 
 
         def serialize_request_body(content_type: str | None, body: Any) -> bytes | None:
