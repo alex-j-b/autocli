@@ -139,7 +139,6 @@ def build_processor_context() -> dict[str, object]:
         "fixture": {
             "id": "products_get_001",
             "captured_at": "2026-04-10T09:15:00Z",
-            "raw_ref": None,
             "source": "flow",
         },
         "state": {"normalized": True},
@@ -165,16 +164,15 @@ def test_fixture_file_models_accept_valid_envelopes_and_meta() -> None:
 
     assert request.path == "/api/products/123"
     assert response.status == 200
-    assert meta.raw_ref is None
+    assert "raw_ref" not in meta.model_fields_set
 
 
-def test_fixture_meta_accepts_legacy_raw_ref() -> None:
+def test_fixture_meta_rejects_raw_ref() -> None:
     payload = build_fixture_meta()
     payload["raw_ref"] = "raw/products_get_001.flow"
 
-    meta = FixtureMetaFileModel.model_validate(payload)
-
-    assert meta.raw_ref == "raw/products_get_001.flow"
+    with pytest.raises(ValidationError):
+        FixtureMetaFileModel.model_validate(payload)
 
 
 def test_validate_approved_golden_accepts_plain_json() -> None:
@@ -300,6 +298,14 @@ def test_fixture_boundary_models_reject_invalid_envelopes(builder, mutator) -> N
 
     with pytest.raises(ValidationError):
         model_class.model_validate(payload)
+
+
+def test_processor_context_rejects_fixture_raw_ref() -> None:
+    payload = build_processor_context()
+    payload["fixture"]["raw_ref"] = None
+
+    with pytest.raises(ValidationError):
+        ProcessorContextModel.model_validate(payload)
 
 
 @pytest.mark.parametrize(

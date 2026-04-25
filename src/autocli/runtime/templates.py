@@ -445,19 +445,18 @@ def render_runtime_module(site_slug: str) -> str:
 
             command_id: str
             captured_at: str | None
-            raw_ref: str | None = None
+
+            @model_validator(mode="before")
+            @classmethod
+            def reject_raw_ref(cls, data: Any) -> Any:
+                if isinstance(data, dict) and "raw_ref" in data:
+                    raise ValueError("v2 fixture metadata must not include raw_ref")
+                return data
 
             @field_validator("command_id")
             @classmethod
             def validate_command_id(cls, value: str) -> str:
                 return _validate_command_id(value)
-
-            @field_validator("raw_ref")
-            @classmethod
-            def validate_raw_ref(cls, value: str | None) -> str | None:
-                if value is None:
-                    return value
-                return _validate_relative_path(value, root="raw")
 
 
         class _ProcessorContextCommandModel(BaseModel):
@@ -528,7 +527,13 @@ def render_runtime_module(site_slug: str) -> str:
 
             id: str | None = None
             captured_at: str | None = None
-            raw_ref: str | None = None
+
+            @model_validator(mode="before")
+            @classmethod
+            def reject_raw_ref(cls, data: Any) -> Any:
+                if isinstance(data, dict) and "raw_ref" in data:
+                    raise ValueError("v2 fixture context must not include raw_ref")
+                return data
 
             @field_validator("id")
             @classmethod
@@ -957,7 +962,6 @@ def render_runtime_module(site_slug: str) -> str:
                 "fixture": {
                     "id": None,
                     "captured_at": None,
-                    "raw_ref": None,
                 },
                 "state": {},
                 "output": None,
@@ -1120,7 +1124,6 @@ def render_runtime_module(site_slug: str) -> str:
             context["fixture"] = {
                 "id": fixture_id,
                 "captured_at": fixture_bundle["meta"].captured_at,
-                "raw_ref": fixture_bundle["meta"].raw_ref,
             }
 
 
