@@ -17,7 +17,7 @@ def build_command_file() -> dict[str, object]:
     return {
         "version": 1,
         "command": {
-            "id": "get__h_www_rimi_ee__s_products__p_p1",
+            "id": "get__h_www_example_com__s_products__p_p1",
             "cli_path": ["products", "get"],
             "summary": "Get a product by id",
             "description": "Fetch one product payload from the live endpoint.",
@@ -47,7 +47,7 @@ def build_command_file() -> dict[str, object]:
             },
             "request": {
                 "method": "GET",
-                "url_template": "https://www.rimi.ee/api/products/{p1}",
+                "url_template": "https://www.example.com/api/products/{p1}",
                 "path_template": "/api/products/{p1}",
                 "path_shape": [
                     {"kind": "literal", "value": "api"},
@@ -86,7 +86,7 @@ def build_command_file() -> dict[str, object]:
 def build_fixture_request() -> dict[str, object]:
     return {
         "method": "GET",
-        "url": "https://www.rimi.ee/api/products/123",
+        "url": "https://www.example.com/api/products/123",
         "path": "/api/products/123",
         "query": {"lang": "en"},
         "headers": {"accept": "application/json"},
@@ -102,7 +102,7 @@ def build_fixture_response() -> dict[str, object]:
 
 def build_fixture_meta() -> dict[str, object]:
     return {
-        "command_id": "get__h_www_rimi_ee__s_products__p_p1",
+        "command_id": "get__h_www_example_com__s_products__p_p1",
         "captured_at": "2026-04-10T09:15:00Z",
     }
 
@@ -113,14 +113,14 @@ def build_processor_context() -> dict[str, object]:
         "execution_mode": "fixture",
         "raw_mode": False,
         "command": {
-            "id": "get__h_www_rimi_ee__s_products__p_p1",
+            "id": "get__h_www_example_com__s_products__p_p1",
             "cli_path": ["products", "get"],
             "summary": "Get a product by id",
         },
         "args": {"product_id": "123", "format": "json"},
         "request": {
             "method": "GET",
-            "url": "https://www.rimi.ee/api/products/123",
+            "url": "https://www.example.com/api/products/123",
             "path": "/api/products/123",
             "params": {"p1": "123"},
             "query": {"lang": "en"},
@@ -144,7 +144,7 @@ def build_processor_context() -> dict[str, object]:
         },
         "state": {"normalized": True},
         "output": {"id": "123", "name": "Milk"},
-        "site_slug": "rimi-ee",
+        "site_slug": "example-com",
     }
 
 
@@ -152,7 +152,7 @@ def test_command_file_model_accepts_plan_shape() -> None:
     model = CommandFileModel.model_validate(build_command_file())
 
     assert model.version == 1
-    assert model.command.id == "get__h_www_rimi_ee__s_products__p_p1"
+    assert model.command.id == "get__h_www_example_com__s_products__p_p1"
     assert model.command.arguments[0].python_name == "product_id"
     assert model.command.request.path_shape[2].kind == "parameter"
     assert model.command.processors.pre == "processors.pre"

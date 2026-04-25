@@ -31,14 +31,14 @@ Recommended split:
 
 Typical loop:
 
-1. Prepare a fresh local `.flow` capture and choose an empty output directory such as `/Users/alexisboix/Projects/rimi-workspace`.
+1. Prepare a fresh local `.flow` capture and choose an empty output directory such as `/Users/alexisboix/Projects/example-workspace`.
 2. Keep `autocli` installed in editable tool mode while iterating:
 
 ```bash
 uv tool install --editable /Users/alexisboix/Projects/autocli
 ```
 
-3. Record a small, intentional candidate-site session that exercises command-like traffic. For `www.rimi.ee`, a good first pass is product/search traffic plus one cart update.
+3. Record a small, intentional candidate-site session that exercises command-like traffic. For `www.example.com`, a good first pass is product/search traffic plus one state-changing update.
 4. Send Codex the absolute capture path and output directory, then run:
 
 ```bash

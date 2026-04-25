@@ -74,11 +74,11 @@ def test_normalize_exchange_repairs_flow_hosts_and_extracts_query() -> None:
                 "method": "GET",
                 "url": "https:///api/products?lang=en",
                 "scheme": "https",
-                "host": "www.rimi.ee",
+                "host": "www.example.com",
                 "port": 443,
-                "host_header": "www.rimi.ee",
+                "host_header": "www.example.com",
                 "path": "/api/products?lang=en",
-                "headers": [("Host", "www.rimi.ee"), ("Accept", "application/json")],
+                "headers": [("Host", "www.example.com"), ("Accept", "application/json")],
                 "body": b"",
             },
             "response": {
@@ -89,8 +89,8 @@ def test_normalize_exchange_repairs_flow_hosts_and_extracts_query() -> None:
         }
     )
 
-    assert normalized["request"]["url"] == "https://www.rimi.ee/api/products?lang=en"
-    assert normalized["request"]["host"] == "www.rimi.ee"
+    assert normalized["request"]["url"] == "https://www.example.com/api/products?lang=en"
+    assert normalized["request"]["host"] == "www.example.com"
     assert normalized["request"]["path"] == "/api/products"
     assert normalized["request"]["query"] == {"lang": "en"}
     assert normalized["response"]["media_type"] == "application/json"
