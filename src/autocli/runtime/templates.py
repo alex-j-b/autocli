@@ -446,7 +446,6 @@ def render_runtime_module(site_slug: str) -> str:
             command_id: str
             captured_at: str | None
             raw_ref: str | None = None
-            flow_id: str | None
 
             @field_validator("command_id")
             @classmethod
@@ -530,7 +529,6 @@ def render_runtime_module(site_slug: str) -> str:
             id: str | None = None
             captured_at: str | None = None
             raw_ref: str | None = None
-            flow_id: str | None = None
 
             @field_validator("id")
             @classmethod
@@ -959,7 +957,6 @@ def render_runtime_module(site_slug: str) -> str:
                     "id": None,
                     "captured_at": None,
                     "raw_ref": None,
-                    "flow_id": None,
                 },
                 "state": {},
                 "output": None,
@@ -1123,7 +1120,6 @@ def render_runtime_module(site_slug: str) -> str:
                 "id": fixture_id,
                 "captured_at": fixture_bundle["meta"].captured_at,
                 "raw_ref": fixture_bundle["meta"].raw_ref,
-                "flow_id": fixture_bundle["meta"].flow_id,
             }
 
 

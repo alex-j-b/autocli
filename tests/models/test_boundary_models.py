@@ -104,7 +104,6 @@ def build_fixture_meta() -> dict[str, object]:
     return {
         "command_id": "get__h_www_rimi_ee__s_products__p_p1",
         "captured_at": "2026-04-10T09:15:00Z",
-        "flow_id": "entry-001",
     }
 
 
@@ -141,7 +140,6 @@ def build_processor_context() -> dict[str, object]:
             "id": "products_get_001",
             "captured_at": "2026-04-10T09:15:00Z",
             "raw_ref": None,
-            "flow_id": "entry-001",
             "source": "flow",
         },
         "state": {"normalized": True},

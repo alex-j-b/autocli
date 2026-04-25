@@ -255,7 +255,6 @@ def build_case_payloads(command: dict[str, Any]) -> list[dict[str, Any]]:
         meta_json = {
             "command_id": command["id"],
             "captured_at": sample["source"]["captured_at"],
-            "flow_id": sample["source"]["capture_id"],
         }
 
         FixtureRequestFileModel.model_validate(request_json)

@@ -397,7 +397,6 @@ class FixtureMetaFileModel(BaseModel):
     command_id: str
     captured_at: datetime | None
     raw_ref: str | None = None
-    flow_id: str | None
 
     @field_validator("command_id")
     @classmethod
@@ -481,7 +480,6 @@ class _ProcessorContextFixtureModel(BaseModel):
     id: str | None = None
     captured_at: datetime | None = None
     raw_ref: str | None = None
-    flow_id: str | None = None
 
     @field_validator("id")
     @classmethod
