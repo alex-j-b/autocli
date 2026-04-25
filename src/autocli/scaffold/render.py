@@ -93,9 +93,11 @@ def render_agents_md(*, site_module: str, cli_name: str, command_root: str = "co
     return f"""# AGENTS.md
 
 ## What This Is
+
 This is a generated `autocli` workspace. The parent `autocli` project generated this repository from captured HTTP traffic; this workspace is the editable product surface for turning those captures into a useful CLI.
 
 ## Repository Map
+
 - `pyproject.toml`: package metadata, console script entry point, dependencies, and `[tool.autocli]` workspace settings.
 - `{command_root}/<command>/command.yaml`: generated command metadata and request mapping.
 - `{command_root}/<command>/fixtures/`: captured request/response cases used as evidence.
@@ -110,6 +112,7 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - `.env.example`: example environment file.
 
 ## Governing Principles
+
 - Captured fixtures are evidence, not a complete product specification.
 - Generated command IDs, argument names, and output shapes are raw material, not final product decisions.
 - Prefer pragmatic fixes in this generated workspace before changing the parent generator.
@@ -120,6 +123,7 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - Session-sensitive headers should come from `PLAYWRIGHT_HEADERS_JSON`, not persisted fixtures.
 
 ## Working With This Workspace
+
 - Use `skills/build-cli/SKILL.md` when the task is to improve, finish, or review the generated CLI.
 - Use `processors/pre.py` only for request-shaping behavior needed by live execution.
 - Use `processors/post.py` for the command's JSON output contract.
@@ -127,6 +131,7 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - Stay inside this generated workspace unless there is a clear blocker that only the parent `autocli` generator can fix.
 
 ## Common Failure Modes
+
 - Optional query/path/body args treated as required during fixture replay.
 - Compressed response bodies not decoded before parsing.
 - HTML or HTML-in-JSON responses handled with brittle string slicing.
@@ -134,6 +139,7 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - Live-session headers not supplied correctly for authenticated requests.
 
 ## Useful Commands
+
 - Install CLI tool: `uv tool install --editable .`
 - CLI help: `{cli_name} --help` or `python -m {site_module} --help`
 - Command help: `{cli_name} <command path> --help`
@@ -150,6 +156,7 @@ def render_build_cli_skill() -> str:
 Use this skill when shaping a generated `autocli` workspace into a user-approved CLI.
 
 ## Phase 1: Session And Safety
+
 - Initialize git for the workspace if it is not already initialized.
 - Make an initial commit before changing generated files when there is no existing history.
 - Ensure `.env` contains `PLAYWRIGHT_HEADERS_JSON` with headers that can access the target site.
@@ -159,6 +166,7 @@ Use this skill when shaping a generated `autocli` workspace into a user-approved
 - When endpoint safety is ambiguous, treat it as mutable and ask first.
 
 ## Phase 2: Inventory And Legibility
+
 - Inspect all generated commands, fixtures, request mappings, current CLI help, and processors.
 - Treat generated command IDs and paths as raw capture artifacts, not final UX.
 - Group commands by user-facing concept.
@@ -167,7 +175,9 @@ Use this skill when shaping a generated `autocli` workspace into a user-approved
 - Update references consistently after renames and run focused tests or validation.
 
 ## Phase 3: Product Shaping Review
+
 For each logical command or command group:
+
 - Explain what it appears to do in one sentence.
 - Show an example invocation.
 - Show or describe the expected JSON output shape.
@@ -185,6 +195,7 @@ For each logical command or command group:
 Do not assume generated command names, arguments, or outputs are acceptable merely because tests pass.
 
 ## Phase 4: Refactor Toward Approved Shape
+
 - Apply the user-approved CLI shape.
 - Implement processor changes according to the approved behavior.
 - Merge, split, remove, or rename commands as approved.
@@ -193,12 +204,14 @@ Do not assume generated command names, arguments, or outputs are acceptable mere
 - Run focused tests after each substantial command change.
 
 ## Phase 5: Acceptance Review
+
 - Review the actual refactored commands one by one.
 - Show command help and representative output.
 - Ask whether each command is accepted or needs another change.
 - Continue review/refactor rounds until the user accepts the CLI.
 
 ## Done Criteria
+
 - `.env` auth/session setup is working or clearly documented.
 - Command folders are human-readable.
 - Commands are grouped around user concepts rather than capture artifacts.
