@@ -65,6 +65,8 @@ def build(
         f"Workspace {result['workspace_root']}: created {len(result['created_command_ids'])} "
         f"command(s), skipped {len(result['skipped_command_ids'])} duplicate(s)."
     )
+    typer.echo(f"Next: uv tool install -e {result['workspace_root']}")
+    typer.echo(f"Next: use refinement skill {result['refinement_skill_path']}")
 
 
 def main() -> None:

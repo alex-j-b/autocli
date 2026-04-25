@@ -275,6 +275,8 @@ def test_record_command_generates_workspace_from_flow(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "created 1 command(s), skipped 0 duplicate(s)." in result.output
+    assert f"Next: uv tool install -e {output_dir.resolve()}" in result.output
+    assert f"Next: use refinement skill {output_dir.resolve() / 'skills' / 'build-cli' / 'SKILL.md'}" in result.output
     assert (output_dir / "commands" / "get__h_shop_example_com__s_api__s_products__p_p1" / "command.yaml").exists()
 
 

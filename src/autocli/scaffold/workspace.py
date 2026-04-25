@@ -64,6 +64,7 @@ def bootstrap_workspace(output_dir: Path, *, compiled_commands: list[dict[str, A
 
     return {
         "workspace_root": str(output_dir),
+        "refinement_skill_path": str(output_dir / "skills" / "build-cli" / "SKILL.md"),
         "site_slug": str(config["site_slug"]),
         "site_module": str(config["site_module"]),
         "created_command_ids": created_command_ids,
