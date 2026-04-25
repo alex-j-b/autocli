@@ -54,7 +54,7 @@ cd /absolute/path/to/workspace
 PLAYWRIGHT_HEADERS_JSON='{"headers":{}}' python -m pytest commands/<command-id>/tests/test_command.py -q
 ```
 
-Generated tests remain offline: they replay fixture responses instead of making network calls. They still require `PLAYWRIGHT_HEADERS_JSON` so the same late-bound session-header path is exercised during tests and live runs. Use `{"headers":{}}` only when no session-sensitive headers are needed.
+Generated tests remain offline: they call the generated CLI with test-only `--replay`, which uses the command's fixture response instead of making network calls. They still require `PLAYWRIGHT_HEADERS_JSON` so the late-bound session-header merge path matches live execution.
 
 That test run marks the command complete on success and incomplete on failure, which controls whether the command is registered in the generated CLI.
 
@@ -71,6 +71,8 @@ uv tool install --editable /absolute/path/to/workspace
 cd /absolute/path/to/workspace
 PLAYWRIGHT_HEADERS_JSON='{"url":"https://example.com/xhr","method":"GET","resourceType":"xhr","capturedAt":"2026-04-24T20:46:23.572Z","headers":{"cookie":"...","x-xsrf-token":"..."}}' python -m <site_module> <command path and args>
 PLAYWRIGHT_HEADERS_JSON='{"url":"https://example.com/xhr","method":"GET","resourceType":"xhr","capturedAt":"2026-04-24T20:46:23.572Z","headers":{"cookie":"...","x-xsrf-token":"..."}}' python -m <site_module> <command path and args> --raw
+AUTOCLI_TEST_MODE=true PLAYWRIGHT_HEADERS_JSON='{"headers":{}}' python -m <site_module> <command path and args> --replay
+AUTOCLI_TEST_MODE=true PLAYWRIGHT_HEADERS_JSON='{"headers":{}}' python -m <site_module> <command path and args> --replay --raw
 ```
 
 ## Generated Fixture Shape
@@ -95,5 +97,6 @@ Done means:
 - that command is visible in the generated CLI
 - that command executes live
 - `--raw` returns the unprocessed response body unchanged
+- `--replay` returns the same post-processed or raw output from captured fixtures without network access
 
 If command names or payload meaning are ambiguous, the most useful user input is a short explanation of what the captured action was supposed to do.

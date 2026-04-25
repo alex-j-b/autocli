@@ -239,6 +239,29 @@ def test_generated_runtime_treats_missing_complete_flag_as_legacy_available(tmp_
     assert "products" in help_result.stdout
 
 
+def test_generated_runtime_fixture_tests_replay_through_generated_cli_with_live_headers(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    result = build_workspace(
+        workspace,
+        [
+            make_exchange("GET", "https://shop.example.com/api/products/123", source_id="1", response_body=b'{"id":"123"}'),
+            make_exchange("GET", "https://shop.example.com/api/products/456", source_id="2", response_body=b'{"id":"456"}'),
+        ],
+    )
+
+    command_dir = workspace / "commands" / result["created_command_ids"][0]
+    install_json_processors_and_goldens(command_dir, output_fields=["id"])
+
+    pytest_result = run_workspace_pytest(
+        workspace,
+        command_dir / "tests" / "test_command.py",
+        extra_env={"PLAYWRIGHT_HEADERS_JSON": EMPTY_PLAYWRIGHT_HEADERS_JSON},
+    )
+
+    assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
+    assert read_command_complete(command_dir) is True
+
+
 def test_generated_runtime_fixture_tests_require_playwright_headers_json(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     result = build_workspace(
@@ -361,6 +384,15 @@ def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path
         assert raw_file_result.returncode == 0, raw_file_result.stderr
         assert raw_file_result.stdout == ""
         assert raw_output_path.read_text(encoding="utf-8") == '{"delta":3,"format":"json","id":"789","mode":"soft"}'
+
+        replay_result = run_module(
+            workspace,
+            module_name,
+            ["cart", "change", "789", "--format", "json", "--delta", "3", "--replay"],
+            env=env,
+        )
+        assert replay_result.returncode != 0
+        assert "--replay is only available when AUTOCLI_TEST_MODE=true" in replay_result.stderr
     finally:
         server.stop()
 
@@ -472,13 +504,15 @@ def test_generated_runtime_rejects_duplicate_cli_paths_after_validation(tmp_path
     command_dirs = [workspace / "commands" / command_id for command_id in result["created_command_ids"]]
     for command_dir in command_dirs:
         install_json_processors_and_goldens(command_dir, output_fields=["id"])
-        rewrite_cli_path(command_dir, ["dup"])
         pytest_result = run_workspace_pytest(
             workspace,
             command_dir / "tests" / "test_command.py",
             extra_env={"PLAYWRIGHT_HEADERS_JSON": EMPTY_PLAYWRIGHT_HEADERS_JSON},
         )
         assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
+
+    for command_dir in command_dirs:
+        rewrite_cli_path(command_dir, ["dup"])
 
     help_result = run_module(workspace, module_name, ["--help"])
     assert help_result.returncode == 0

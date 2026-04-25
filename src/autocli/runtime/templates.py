@@ -69,6 +69,7 @@ def render_runtime_module(site_slug: str) -> str:
         from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
         PLAYWRIGHT_HEADERS_JSON_ENV = "PLAYWRIGHT_HEADERS_JSON"
+        TEST_MODE_ENV = "AUTOCLI_TEST_MODE"
         SESSION_SENSITIVE_HEADER_NAMES = {
             "authorization",
             "cookie",
@@ -581,14 +582,22 @@ def render_runtime_module(site_slug: str) -> str:
             def main() -> None:
                 \"\"\"Generated site CLI root.\"\"\"
 
-            valid_commands, warnings = discover_valid_commands(workspace_root)
+            test_mode = os.environ.get(TEST_MODE_ENV) == "true"
+            valid_commands, warnings = discover_valid_commands(
+                workspace_root,
+                include_incomplete=test_mode,
+            )
             for warning in warnings:
                 emit_runtime_warning(warning)
             register_valid_commands(app, workspace_root, valid_commands)
             return app
 
 
-        def discover_valid_commands(workspace_root: Path) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
+        def discover_valid_commands(
+            workspace_root: Path,
+            *,
+            include_incomplete: bool = False,
+        ) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
             \"\"\"Discover, validate, and filter runnable command modules.\"\"\"
 
             warnings: list[dict[str, str]] = []
@@ -610,7 +619,7 @@ def render_runtime_module(site_slug: str) -> str:
                     )
                     continue
 
-                if not command_file.command.complete:
+                if not command_file.command.complete and not include_incomplete:
                     continue
 
                 passing.append({"command_dir": command_dir, "command_file": command_file})
@@ -752,14 +761,18 @@ def render_runtime_module(site_slug: str) -> str:
 
             def callback(**kwargs: Any) -> None:
                 raw_mode = bool(kwargs.pop("raw"))
+                replay_mode = bool(kwargs.pop("replay"))
                 output_path = kwargs.pop("output")
                 try:
+                    if replay_mode and os.environ.get(TEST_MODE_ENV) != "true":
+                        raise ValueError("--replay is only available when AUTOCLI_TEST_MODE=true")
                     result = execute_command(
                         workspace_root=workspace_root,
                         command_dir=command_dir,
                         command_file=command_file,
                         provided_args=kwargs,
                         raw_mode=raw_mode,
+                        replay_mode=replay_mode,
                     )
                     if raw_mode:
                         write_raw_output(result, output_path)
@@ -808,6 +821,14 @@ def render_runtime_module(site_slug: str) -> str:
             )
             parameters.append(
                 inspect.Parameter(
+                    "replay",
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    default=typer.Option(False, "--replay", help="Replay a matching fixture instead of sending a live request."),
+                    annotation=bool,
+                )
+            )
+            parameters.append(
+                inspect.Parameter(
                     "output",
                     inspect.Parameter.POSITIONAL_OR_KEYWORD,
                     default=typer.Option(None, "--output", help="Write raw output to a file."),
@@ -836,12 +857,13 @@ def render_runtime_module(site_slug: str) -> str:
             command_file: CommandFileModel,
             provided_args: dict[str, Any],
             raw_mode: bool,
+            replay_mode: bool = False,
             fixture_id: str | None = None,
         ) -> JsonValue | str | bytes:
             \"\"\"Execute a generated command live or from a fixture replay.\"\"\"
 
             args = normalize_cli_args(command_file, provided_args)
-            execution_mode: Literal["live", "fixture"] = "fixture" if fixture_id is not None else "live"
+            execution_mode: Literal["live", "fixture"] = "fixture" if replay_mode or fixture_id is not None else "live"
             context = build_base_context(command_file, args, raw_mode=raw_mode, execution_mode=execution_mode)
             apply_request_mapping(context, command_file.command.request_mapping)
             render_request_target(context["request"])
@@ -850,6 +872,9 @@ def render_runtime_module(site_slug: str) -> str:
             pre_processor = load_processor_callable(workspace_root, command_dir, command_file.command.processors.pre)
             context = invoke_processor(pre_processor, context, "pre")
             context = ProcessorContextModel.model_validate(context).model_dump(mode="python")
+
+            if fixture_id is None and replay_mode:
+                fixture_id = single_replay_fixture_id(command_file)
 
             if fixture_id is None:
                 perform_live_request(context)
@@ -1065,6 +1090,14 @@ def render_runtime_module(site_slug: str) -> str:
             if not callable(processor):
                 raise ValueError(f"Processor module {module_ref} must export callable run(context)")
             return processor
+
+
+        def single_replay_fixture_id(command_file: CommandFileModel) -> str:
+            \"\"\"Return the single fixture id for a generated command.\"\"\"
+
+            if len(command_file.command.fixtures) != 1:
+                raise ValueError("Replay requires commands to have exactly one fixture")
+            return command_file.command.fixtures[0].id
 
 
         def replay_fixture_response(
