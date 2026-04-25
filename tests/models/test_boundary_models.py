@@ -104,7 +104,6 @@ def build_fixture_meta() -> dict[str, object]:
     return {
         "command_id": "get__h_www_rimi_ee__s_products__p_p1",
         "captured_at": "2026-04-10T09:15:00Z",
-        "raw_ref": "raw/products_get_001.flow",
         "flow_id": "entry-001",
     }
 
@@ -141,7 +140,7 @@ def build_processor_context() -> dict[str, object]:
         "fixture": {
             "id": "products_get_001",
             "captured_at": "2026-04-10T09:15:00Z",
-            "raw_ref": "raw/products_get_001.flow",
+            "raw_ref": None,
             "flow_id": "entry-001",
             "source": "flow",
         },
@@ -168,6 +167,15 @@ def test_fixture_file_models_accept_valid_envelopes_and_meta() -> None:
 
     assert request.path == "/api/products/123"
     assert response.status == 200
+    assert meta.raw_ref is None
+
+
+def test_fixture_meta_accepts_legacy_raw_ref() -> None:
+    payload = build_fixture_meta()
+    payload["raw_ref"] = "raw/products_get_001.flow"
+
+    meta = FixtureMetaFileModel.model_validate(payload)
+
     assert meta.raw_ref == "raw/products_get_001.flow"
 
 

@@ -150,13 +150,13 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     request = FixtureRequestFileModel.model_validate(json.loads((fixture_dir / "request.json").read_text(encoding="utf-8")))
     FixtureResponseFileModel.model_validate(json.loads((fixture_dir / "response.json").read_text(encoding="utf-8")))
     meta = FixtureMetaFileModel.model_validate(json.loads((fixture_dir / "meta.json").read_text(encoding="utf-8")))
-    assert meta.raw_ref == "raw/cart_change_001.flow"
+    assert meta.raw_ref is None
     assert request.url == "https://shop.example.com/epood/cart/change/456?format=table&lang=en&include=totals"
     assert "cookie" not in {header.lower() for header in request.headers}
     assert "x-xsrf-token" not in {header.lower() for header in request.headers}
     assert (fixture_dir / "request.body").read_bytes() == b'{"delta": 2, "mode": "soft"}'
     assert (fixture_dir / "response.body").read_bytes() == b'{"ok": true}'
-    assert (command_dir / "raw" / "cart_change_001.flow").exists()
+    assert not (command_dir / "raw").exists()
     assert (command_dir / "goldens").is_dir()
 
     generated_test = (command_dir / "tests" / "test_command.py").read_text(encoding="utf-8")

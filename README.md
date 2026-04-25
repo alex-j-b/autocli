@@ -86,7 +86,7 @@ Fixture cases live under `commands/<command-id>/fixtures/<case-id>/` and intenti
 - `request.body`: raw request body bytes
 - `response.json`: response status and headers
 - `response.body`: raw response body bytes
-- `meta.json`: command id, capture timestamp, raw artifact reference, and flow id
+- `meta.json`: command id, capture timestamp, and flow id
 
 Request and response bodies stay in separate byte files because they may be binary, compressed, empty, or encoded independently of the JSON metadata. Session-sensitive request headers are not persisted in fixtures or command templates; provide them at test or live runtime through `PLAYWRIGHT_HEADERS_JSON`.
 

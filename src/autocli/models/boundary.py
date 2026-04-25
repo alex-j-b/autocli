@@ -396,7 +396,7 @@ class FixtureMetaFileModel(BaseModel):
 
     command_id: str
     captured_at: datetime | None
-    raw_ref: str
+    raw_ref: str | None = None
     flow_id: str | None
 
     @field_validator("command_id")
@@ -406,7 +406,9 @@ class FixtureMetaFileModel(BaseModel):
 
     @field_validator("raw_ref")
     @classmethod
-    def validate_raw_ref(cls, value: str) -> str:
+    def validate_raw_ref(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         return _validate_relative_path(value, root="raw")
 
 

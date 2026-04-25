@@ -10,8 +10,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from mitmproxy import connection, http, io
-
 from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureRequestFileModel, FixtureResponseFileModel
 from autocli.scaffold.render import (
     derive_short_script_name,
@@ -209,7 +207,7 @@ def write_command_tree(output_dir: Path, config: dict[str, Any], command: dict[s
 
     command_dir = output_dir / str(config["command_root"]) / command["id"]
     command_dir.mkdir(parents=True, exist_ok=False)
-    for directory_name in ("raw", "fixtures", "goldens", "processors", "tests"):
+    for directory_name in ("fixtures", "goldens", "processors", "tests"):
         (command_dir / directory_name).mkdir(parents=True, exist_ok=True)
 
     cases = build_case_payloads(command)
@@ -220,7 +218,6 @@ def write_command_tree(output_dir: Path, config: dict[str, Any], command: dict[s
         write_text_file(command_dir / relative_path, content)
 
     for case in cases:
-        write_raw_artifact(command_dir / case["raw_relpath"], case["sample"])
         fixture_dir = command_dir / case["fixture_relpath"]
         fixture_dir.mkdir(parents=True, exist_ok=True)
         write_json_file(fixture_dir / "request.json", case["request_json"])
@@ -231,14 +228,13 @@ def write_command_tree(output_dir: Path, config: dict[str, Any], command: dict[s
 
 
 def build_case_payloads(command: dict[str, Any]) -> list[dict[str, Any]]:
-    """Build fixture/raw/golden payload metadata for one command."""
+    """Build fixture/golden payload metadata for one command."""
 
     samples = select_fixture_samples(list(command.get("samples", [])))
     case_base = case_id_base(command["cli_path"])
     cases: list[dict[str, Any]] = []
     for index, sample in enumerate(samples, start=1):
         case_id = f"{case_base}_{index:03d}" if case_base else f"case_{index:03d}"
-        raw_relpath = Path("raw") / f"{case_id}.flow"
         fixture_relpath = Path("fixtures") / case_id
 
         request_json = {
@@ -255,7 +251,6 @@ def build_case_payloads(command: dict[str, Any]) -> list[dict[str, Any]]:
         meta_json = {
             "command_id": command["id"],
             "captured_at": sample["source"]["captured_at"],
-            "raw_ref": raw_relpath.as_posix(),
             "flow_id": sample["source"]["capture_id"],
         }
 
@@ -266,7 +261,6 @@ def build_case_payloads(command: dict[str, Any]) -> list[dict[str, Any]]:
         cases.append(
             {
                 "id": case_id,
-                "raw_relpath": raw_relpath,
                 "fixture_relpath": fixture_relpath,
                 "golden_relpath": Path("goldens") / f"{case_id}.json",
                 "request_json": request_json,
@@ -338,57 +332,6 @@ def is_session_sensitive_header(header_name: str) -> bool:
     if normalized.startswith("sec-"):
         return True
     return any(token in normalized for token in SESSION_SENSITIVE_HEADER_SUBSTRINGS)
-
-
-def write_raw_artifact(path: Path, sample: dict[str, Any]) -> None:
-    """Write the raw evidence artifact for one accepted sample."""
-
-    write_bytes_file(path, build_single_flow_bytes(sample))
-
-
-def build_single_flow_bytes(sample: dict[str, Any]) -> bytes:
-    """Reconstruct a one-flow `.flow` artifact from a normalized sample."""
-
-    flow = http.HTTPFlow(
-        client_conn=connection.Client(peername=("127.0.0.1", 0), sockname=("127.0.0.1", 0)),
-        server_conn=connection.Server(address=(sample["request"]["host"], sample["request"]["port"])),
-    )
-    flow.request = http.Request.make(
-        sample["request"]["method"],
-        sample["request"]["url"],
-        content=bytes(sample["request"]["body"]),
-        headers=list(flatten_mapping_items_bytes(sample["request"]["headers"])),
-    )
-    flow.response = http.Response.make(
-        int(sample["response"]["status"]),
-        content=bytes(sample["response"]["body"]),
-        headers=list(flatten_mapping_items_bytes(sample["response"]["headers"])),
-    )
-
-    from io import BytesIO
-
-    buffer = BytesIO()
-    writer = io.FlowWriter(buffer)
-    writer.add(flow)
-    return buffer.getvalue()
-
-
-def flatten_mapping_items(mapping: dict[str, Any]) -> list[tuple[str, str]]:
-    """Flatten a normalized mapping that may contain repeated values."""
-
-    items: list[tuple[str, str]] = []
-    for key, value in mapping.items():
-        if isinstance(value, list):
-            items.extend((key, str(item)) for item in value)
-        else:
-            items.append((key, str(value)))
-    return items
-
-
-def flatten_mapping_items_bytes(mapping: dict[str, Any]) -> list[tuple[bytes, bytes]]:
-    """Flatten a normalized mapping into byte header tuples for mitmproxy."""
-
-    return [(key.encode("utf-8"), value.encode("utf-8")) for key, value in flatten_mapping_items(mapping)]
 
 
 def write_text_if_missing(path: Path, content: str) -> None:

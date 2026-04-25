@@ -74,11 +74,11 @@ def render_agents_md(*, site_module: str, cli_name: str, command_root: str = "co
 
 ## Start Here
 1. Inspect `{command_root}/` and each generated command directory.
-2. Read `command.yaml`, fixtures, raw artifacts, goldens, processor stubs, and workspace-local runtime/testing helpers.
+2. Read `command.yaml`, fixtures, goldens, processor stubs, and workspace-local runtime/testing helpers.
 3. Pick one command and carry it end to end first.
 
 ## Expected Workflow
-1. Infer a stable JSON output shape from the fixture cases and raw artifacts.
+1. Infer a stable JSON output shape from the fixture cases.
 2. Check workspace-local runtime/testing helpers for replay issues before editing processors.
 3. Fix local helper/runtime bugs when they block fixture replay or live execution.
 4. Implement `processors/pre.py` only as needed to construct the live request.
