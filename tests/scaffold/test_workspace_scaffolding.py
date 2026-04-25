@@ -14,6 +14,7 @@ from autocli.cli import app
 from autocli.compiler.schema import compile_command_candidates
 from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureRequestFileModel, FixtureResponseFileModel
 from autocli.scaffold import bootstrap_workspace
+from autocli.scaffold.render import render_agents_md, render_build_cli_skill
 
 
 def make_exchange(
@@ -127,11 +128,13 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
 
     site_dir = workspace / "shop_example_com"
     agents_path = workspace / "AGENTS.md"
+    build_cli_skill_path = workspace / "skills" / "build-cli" / "SKILL.md"
     assert (workspace / "shared" / "__init__.py").exists()
     assert (workspace / "commands" / "__init__.py").exists()
     assert (workspace / ".env").read_text(encoding="utf-8") == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
     assert (workspace / ".env.example").read_text(encoding="utf-8") == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
     assert agents_path.exists()
+    assert build_cli_skill_path.exists()
     assert (site_dir / "__init__.py").exists()
     assert (site_dir / "__main__.py").exists()
     assert (site_dir / "cli.py").exists()
@@ -169,11 +172,11 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     assert "def build_app(workspace_root: Path) -> typer.Typer:" in runtime_source
     testing_source = (site_dir / "testing.py").read_text(encoding="utf-8")
     assert "def run_command_contract(command_dir: Path) -> None:" in testing_source
-    agents_source = agents_path.read_text(encoding="utf-8")
-    assert "Make generated command(s) functional end to end inside this workspace." in agents_source
-    assert "uv tool install --editable ." in agents_source
-    assert "python -m shop_example_com --help" in agents_source
-    assert "example --help" in agents_source
+    assert agents_path.read_text(encoding="utf-8") == render_agents_md(
+        site_module="shop_example_com",
+        cli_name="example",
+    )
+    assert build_cli_skill_path.read_text(encoding="utf-8") == render_build_cli_skill()
 
 
 def test_bootstrap_workspace_is_append_only_on_rerun(tmp_path: Path) -> None:
@@ -206,6 +209,7 @@ def test_bootstrap_workspace_is_append_only_on_rerun(tmp_path: Path) -> None:
     assert pre_stub.read_text(encoding="utf-8") == "custom pre-processor\n"
     assert len(list((existing_command_dir / "fixtures").iterdir())) == 1
     assert (workspace / "AGENTS.md").exists()
+    assert (workspace / "skills" / "build-cli" / "SKILL.md").exists()
     assert (workspace / ".env").exists()
     assert (workspace / ".env.example").exists()
     assert (

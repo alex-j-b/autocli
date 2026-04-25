@@ -70,24 +70,39 @@ def render_agents_md(*, site_module: str, cli_name: str, command_root: str = "co
 
     return f"""# AGENTS.md
 
-## Goal
-- Make generated command(s) functional end to end inside this workspace.
-- Prefer pragmatic fixes in this generated workspace before changing the generator project.
+## What This Is
+This is a generated `autocli` workspace. The parent `autocli` project generated this repository from captured HTTP traffic; this workspace is the editable product surface for turning those captures into a useful CLI.
 
-## Start Here
-1. Inspect `{command_root}/` and each generated command directory.
-2. Read `command.yaml`, fixtures, goldens, processor stubs, and workspace-local runtime/testing helpers.
-3. Pick one command and carry it end to end first.
+## Repository Map
+- `pyproject.toml`: package metadata, console script entry point, dependencies, and `[tool.autocli]` workspace settings.
+- `{command_root}/<command>/command.yaml`: generated command metadata and request mapping.
+- `{command_root}/<command>/fixtures/`: captured request/response cases used as evidence.
+- `{command_root}/<command>/processors/pre.py`: request-shaping hook for live execution.
+- `{command_root}/<command>/processors/post.py`: response-to-JSON hook for the CLI output contract.
+- `{command_root}/<command>/goldens/`: approved post-processed output contracts.
+- `shared/`: workspace-local shared code for processors or command implementations.
+- `{site_module}/runtime.py`: workspace-local CLI runtime.
+- `{site_module}/testing.py`: workspace-local contract test helpers.
+- `skills/build-cli/SKILL.md`: iterative workflow for developing this CLI with user feedback.
+- `.env`: local runtime environment. `PLAYWRIGHT_HEADERS_JSON` can supply live-session headers.
+- `.env.example`: example environment file.
 
-## Expected Workflow
-1. Infer a stable JSON output shape from the fixture cases.
-2. Check workspace-local runtime/testing helpers for replay issues before editing processors.
-3. Fix local helper/runtime bugs when they block fixture replay or live execution.
-4. Implement `processors/pre.py` only as needed to construct the live request.
-5. Implement `processors/post.py` to return clean JSON-serializable output.
-6. Create approved goldens for every declared fixture of the chosen command.
-7. Run the generated contract test and iterate until it passes. A passing run marks the command complete and makes it available in the CLI.
-8. Run the generated CLI locally and verify it returns the expected JSON.
+## Governing Principles
+- Captured fixtures are evidence, not a complete product specification.
+- Generated command IDs, argument names, and output shapes are raw material, not final product decisions.
+- Prefer pragmatic fixes in this generated workspace before changing the parent generator.
+- Keep workspace-specific runtime, testing, and processor changes inside this repository.
+- Goldens must reflect intentionally approved post-processed JSON, not raw transport bodies.
+- Keep output schemas explicit and stable once approved.
+- If the response is HTML, parse it structurally when possible.
+- Session-sensitive headers should come from `PLAYWRIGHT_HEADERS_JSON`, not persisted fixtures.
+
+## Working With This Workspace
+- Use `skills/build-cli/SKILL.md` when the task is to improve, finish, or review the generated CLI.
+- Use `processors/pre.py` only for request-shaping behavior needed by live execution.
+- Use `processors/post.py` for the command's JSON output contract.
+- Update goldens only when the output contract is intentionally changed.
+- Stay inside this generated workspace unless there is a clear blocker that only the parent `autocli` generator can fix.
 
 ## Common Failure Modes
 - Optional query/path/body args treated as required during fixture replay.
@@ -96,25 +111,78 @@ def render_agents_md(*, site_module: str, cli_name: str, command_root: str = "co
 - Generated `request_mapping` mismatches between args and fixture requests.
 - Live-session headers not supplied correctly for authenticated requests.
 
-## Constraints
-- Stay inside this generated workspace unless there is a clear blocker that only the generator can fix.
-- Keep output schemas explicit and stable.
-- Goldens must reflect final post-processed JSON, not raw transport bodies.
-- If the response is HTML, parse it structurally when possible.
-
 ## Useful Commands
 - Install CLI tool: `uv tool install --editable .`
 - CLI help: `{cli_name} --help` or `python -m {site_module} --help`
 - Command help: `{cli_name} <command path> --help`
 - Contract tests: `python -m pytest -q {command_root}/<command_id>/tests/test_command.py`
 - Live authenticated runs can use `PLAYWRIGHT_HEADERS_JSON={{...}}` in `.env`
+"""
 
-## Deliverables
-- Functional processor implementations.
-- Any required workspace-local runtime/testing fixes.
-- Approved goldens for the completed command.
-- Passing generated tests for that command.
-- A short summary of the final JSON output contract, assumptions, fixes, and remaining risks.
+
+def render_build_cli_skill() -> str:
+    """Render the generated workspace ``build-cli`` skill."""
+
+    return """# Build CLI Skill
+
+Use this skill when shaping a generated `autocli` workspace into a user-approved CLI.
+
+## Phase 1: Session And Safety
+- Ensure `.env` contains `PLAYWRIGHT_HEADERS_JSON` with headers that can access the target site.
+- If headers are missing or stale, use Playwright to visit the site and ask the user to log in when needed.
+- Non-mutating requests may be used for discovery when they are useful for understanding the API or output shape.
+- Ask for explicit permission before calling mutating endpoints.
+- When endpoint safety is ambiguous, treat it as mutable and ask first.
+
+## Phase 2: Inventory And Legibility
+- Inspect all generated commands, fixtures, request mappings, current CLI help, and processors.
+- Treat generated command IDs and paths as raw capture artifacts, not final UX.
+- Group commands by user-facing concept.
+- Identify duplicates, noisy captures, incomplete commands, awkward argument names, and weak output shapes.
+- Rename command folders early to human-readable names so the workspace is navigable.
+- Update references consistently after renames and run focused tests or validation.
+
+## Phase 3: Product Shaping Review
+For each logical command or command group:
+- Explain what it appears to do in one sentence.
+- Show an example invocation.
+- Show or describe the expected JSON output shape.
+- Proactively suggest improvements instead of waiting for the user to design the CLI.
+- Offer concrete options when appropriate, such as:
+  - keep as-is
+  - rename
+  - merge with another command
+  - split into separate commands
+  - remove as duplicate/noise
+  - change arguments
+  - change output shape
+- Ask the user which direction they prefer.
+
+Do not assume generated command names, arguments, or outputs are acceptable merely because tests pass.
+
+## Phase 4: Refactor Toward Approved Shape
+- Apply the user-approved CLI shape.
+- Implement processor changes according to the approved behavior.
+- Merge, split, remove, or rename commands as approved.
+- Improve command metadata, help text, arguments, and output contracts.
+- Update goldens only when the output contract is intentionally changed.
+- Run focused tests after each substantial command change.
+
+## Phase 5: Acceptance Review
+- Review the actual refactored commands one by one.
+- Show command help and representative output.
+- Ask whether each command is accepted or needs another change.
+- Continue review/refactor rounds until the user accepts the CLI.
+
+## Done Criteria
+- `.env` auth/session setup is working or clearly documented.
+- Command folders are human-readable.
+- Commands are grouped around user concepts rather than capture artifacts.
+- Duplicate/noisy commands have been handled.
+- Arguments and output shapes have been intentionally reviewed.
+- Goldens reflect approved output contracts.
+- Contract tests pass.
+- The user has accepted the final command set.
 """
 
 

@@ -14,6 +14,7 @@ from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureReques
 from autocli.scaffold.render import (
     derive_short_script_name,
     render_agents_md,
+    render_build_cli_skill,
     render_command_module,
     render_site_package,
     render_workspace_env,
@@ -179,6 +180,7 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
     shared_dir = output_dir / str(config["shared_package"])
     commands_dir = output_dir / str(config["command_root"])
     site_dir = output_dir / str(config["site_module"])
+    build_cli_skill_path = output_dir / "skills" / "build-cli" / "SKILL.md"
 
     shared_dir.mkdir(parents=True, exist_ok=True)
     commands_dir.mkdir(parents=True, exist_ok=True)
@@ -194,6 +196,7 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
             command_root=str(config["command_root"]),
         ),
     )
+    write_text_if_missing(build_cli_skill_path, render_build_cli_skill())
     write_text_if_missing(output_dir / ".env", render_workspace_env())
     write_text_if_missing(output_dir / ".env.example", render_workspace_env_example())
     for relative_path, content in render_site_package(str(config["site_slug"])).items():
