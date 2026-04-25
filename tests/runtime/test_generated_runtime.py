@@ -216,7 +216,7 @@ def test_generated_runtime_requires_completed_commands_before_registration(tmp_p
     assert read_command_complete(command_dir) is False
 
 
-def test_generated_runtime_treats_missing_complete_flag_as_legacy_available(tmp_path: Path) -> None:
+def test_generated_runtime_treats_missing_complete_flag_as_hidden(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     result = build_workspace(
         workspace,
@@ -236,7 +236,9 @@ def test_generated_runtime_treats_missing_complete_flag_as_legacy_available(tmp_
 
     help_result = run_module(workspace, module_name, ["--help"])
     assert help_result.returncode == 0
-    assert "products" in help_result.stdout
+    assert "products" not in help_result.stdout
+    assert "reason=command-file" not in help_result.stderr
+    assert "reason=incomplete" not in help_result.stderr
 
 
 def test_generated_runtime_fixture_tests_replay_through_generated_cli_with_live_headers(tmp_path: Path) -> None:

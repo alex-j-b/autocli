@@ -298,7 +298,7 @@ class CommandSpecModel(BaseModel):
     id: str
     cli_path: list[str] = Field(min_length=1)
     summary: str = Field(min_length=1)
-    complete: bool = True
+    complete: bool = False
     request: CommandRequestModel
     processors: ProcessorRefsModel
     fixtures: list[FixtureRefModel] = Field(min_length=1)
