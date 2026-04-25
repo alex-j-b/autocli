@@ -128,6 +128,8 @@ def render_build_cli_skill() -> str:
 Use this skill when shaping a generated `autocli` workspace into a user-approved CLI.
 
 ## Phase 1: Session And Safety
+- Initialize git for the workspace if it is not already initialized.
+- Make an initial commit before changing generated files when there is no existing history.
 - Ensure `.env` contains `PLAYWRIGHT_HEADERS_JSON` with headers that can access the target site.
 - If headers are missing or stale, use Playwright to visit the site and ask the user to log in when needed.
 - Non-mutating requests may be used for discovery when they are useful for understanding the API or output shape.
