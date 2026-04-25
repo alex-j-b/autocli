@@ -867,17 +867,18 @@ def render_runtime_module(site_slug: str) -> str:
             render_request_target(context["request"])
             context = ProcessorContextModel.model_validate(context).model_dump(mode="python")
 
+            if fixture_id is None and replay_mode:
+                fixture_id = single_replay_fixture_id(command_file)
+            apply_live_header_overrides(context, required=fixture_id is not None)
+            context = ProcessorContextModel.model_validate(context).model_dump(mode="python")
+
             pre_processor = load_processor_callable(workspace_root, command_dir, command_file.command.processors.pre)
             context = invoke_processor(pre_processor, context, "pre")
             context = ProcessorContextModel.model_validate(context).model_dump(mode="python")
 
-            if fixture_id is None and replay_mode:
-                fixture_id = single_replay_fixture_id(command_file)
-
             if fixture_id is None:
                 perform_live_request(context)
             else:
-                apply_live_header_overrides(context, required=True)
                 replay_fixture_response(command_dir, command_file, fixture_id, context)
 
             context = ProcessorContextModel.model_validate(context).model_dump(mode="python")
@@ -1168,7 +1169,6 @@ def render_runtime_module(site_slug: str) -> str:
 
             request = context["request"]
             render_request_target(request)
-            apply_live_header_overrides(context, required=False)
 
             headers = dict(request["headers"])
             payload = serialize_request_body(first_mapping_value(headers, "content-type"), request.get("body"))

@@ -399,6 +399,90 @@ def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path
         server.stop()
 
 
+def test_generated_runtime_preprocessor_headers_override_live_auth_headers(tmp_path: Path) -> None:
+    server = EchoCartServer()
+    server.start()
+    try:
+        workspace = tmp_path / "workspace"
+        base_url = f"http://127.0.0.1:{server.port}"
+        result = build_workspace(
+            workspace,
+            [
+                make_exchange(
+                    "PUT",
+                    f"{base_url}/epood/cart/change/123?format=json",
+                    request_headers={"Content-Type": "application/json", "Accept": "application/json"},
+                    request_body=b'{"delta": 1, "mode": "soft"}',
+                    response_body=b'{"delta":1,"format":"json","id":"123","mode":"soft"}',
+                    source_id="1",
+                ),
+                make_exchange(
+                    "PUT",
+                    f"{base_url}/epood/cart/change/456?format=table",
+                    request_headers={"Content-Type": "application/json", "Accept": "application/json"},
+                    request_body=b'{"delta": 2, "mode": "soft"}',
+                    response_body=b'{"delta":2,"format":"table","id":"456","mode":"soft"}',
+                    source_id="2",
+                ),
+            ],
+        )
+
+        module_name = str(result["site_module"])
+        command_dir = workspace / "commands" / result["created_command_ids"][0]
+        install_json_processors_and_goldens(command_dir, output_fields=["id", "format", "delta", "mode"])
+
+        command_file = yaml.safe_load((command_dir / "command.yaml").read_text(encoding="utf-8"))
+        command_file["command"]["request"]["headers"]["x-xsrf-token"] = "token-from-static"
+        (command_dir / "command.yaml").write_text(yaml.safe_dump(command_file, sort_keys=False), encoding="utf-8")
+        (command_dir / "processors" / "pre.py").write_text(
+            "\n".join(
+                [
+                    "from __future__ import annotations",
+                    "",
+                    "",
+                    "def run(context: dict[str, object]) -> dict[str, object]:",
+                    "    request = context['request']",
+                    "    assert isinstance(request, dict)",
+                    "    headers = request['headers']",
+                    "    assert isinstance(headers, dict)",
+                    "    headers['x-xsrf-token'] = 'token-from-pre'",
+                    "    return context",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        pytest_result = run_workspace_pytest(
+            workspace,
+            command_dir / "tests" / "test_command.py",
+            extra_env={"PLAYWRIGHT_HEADERS_JSON": EMPTY_PLAYWRIGHT_HEADERS_JSON},
+        )
+        assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
+
+        playwright_headers = {
+            "url": f"{base_url}/checkout/xhr",
+            "method": "GET",
+            "resourceType": "xhr",
+            "capturedAt": "2026-04-24T20:46:23.572Z",
+            "headers": {
+                "cookie": "from-env",
+                "x-xsrf-token": "token-from-env",
+            },
+        }
+        live_result = run_module(
+            workspace,
+            module_name,
+            ["cart", "change", "789", "--format", "json", "--delta", "3"],
+            env={"PLAYWRIGHT_HEADERS_JSON": json.dumps(playwright_headers, separators=(",", ":"))},
+        )
+
+        assert live_result.returncode == 0, live_result.stderr
+        assert server.requests[-1]["headers"]["x-xsrf-token"] == "token-from-pre"
+        assert server.requests[-1]["headers"]["cookie"] == "from-env"
+    finally:
+        server.stop()
+
+
 def test_generated_runtime_loads_playwright_headers_from_dotenv_with_shell_override(tmp_path: Path) -> None:
     server = EchoCartServer()
     server.start()
