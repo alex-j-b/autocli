@@ -169,6 +169,7 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     assert "def run_command_contract(command_dir: Path) -> None:" in testing_source
     agents_source = agents_path.read_text(encoding="utf-8")
     assert "Make generated command(s) functional end to end inside this workspace." in agents_source
+    assert "uv tool install --editable ." in agents_source
     assert "python -m shop_example_com --help" in agents_source
     assert "example --help" in agents_source
 

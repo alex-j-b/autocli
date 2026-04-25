@@ -32,19 +32,17 @@ Recommended split:
 Typical loop:
 
 1. Prepare a fresh local `.flow` capture and choose an empty output directory such as `/Users/alexisboix/Projects/rimi-workspace`.
-2. Keep `autocli` installed in editable mode while iterating:
+2. Keep `autocli` installed in editable tool mode while iterating:
 
 ```bash
-cd /Users/alexisboix/Projects/autocli
-python -m pip install -e '.[dev]'
+uv tool install --editable /Users/alexisboix/Projects/autocli
 ```
 
 3. Record a small, intentional candidate-site session that exercises command-like traffic. For `www.rimi.ee`, a good first pass is product/search traffic plus one cart update.
 4. Send Codex the absolute capture path and output directory, then run:
 
 ```bash
-cd /Users/alexisboix/Projects/autocli
-python -m autocli build /absolute/path/to/capture.flow --output-dir /absolute/path/to/workspace
+autocli build /absolute/path/to/capture.flow --output-dir /absolute/path/to/workspace
 ```
 
 5. Codex inspects the generated workspace, fixes any compiler or scaffold gaps exposed by real data, and reruns as needed. Reruns are append-only, so clean regeneration should usually go to a new empty output directory.
@@ -63,9 +61,8 @@ That test run marks the command complete on success and incomplete on failure, w
 8. Validate runtime registration:
 
 ```bash
-cd /absolute/path/to/workspace
-python -m pip install -e .
-python -m <site_module> --help
+uv tool install --editable /absolute/path/to/workspace
+<generated-cli-name> --help
 ```
 
 9. Execute the command live when needed. If authentication is required, provide a Playwright `request.allHeaders()` JSON blob in `PLAYWRIGHT_HEADERS_JSON`. The generated runtime automatically loads `.env` from the workspace root; a shell environment variable with the same name wins over `.env`.

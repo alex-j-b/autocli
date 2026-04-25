@@ -101,6 +101,7 @@ def render_agents_md(*, site_module: str, cli_name: str, command_root: str = "co
 - If the response is HTML, parse it structurally when possible.
 
 ## Useful Commands
+- Install CLI tool: `uv tool install --editable .`
 - CLI help: `{cli_name} --help` or `python -m {site_module} --help`
 - Command help: `{cli_name} <command path> --help`
 - Contract tests: `python -m pytest -q {command_root}/<command_id>/tests/test_command.py`
