@@ -100,6 +100,12 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
                     "X-XSRF-Token": "token-123",
                 },
                 request_body=b'{"delta": 2, "mode": "soft"}',
+                response_headers={
+                    "Content-Type": "application/json",
+                    "Set-Cookie": "session=secret; HttpOnly",
+                    "X-Session-Id": "session-123",
+                    "X-CSRF-Token": "csrf-123",
+                },
                 source_id="2",
             ),
         ]
@@ -153,13 +159,18 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
 
     fixture_dir = command_dir / "fixtures" / "cart_change_001"
     request = FixtureRequestFileModel.model_validate(json.loads((fixture_dir / "request.json").read_text(encoding="utf-8")))
-    FixtureResponseFileModel.model_validate(json.loads((fixture_dir / "response.json").read_text(encoding="utf-8")))
+    response = FixtureResponseFileModel.model_validate(json.loads((fixture_dir / "response.json").read_text(encoding="utf-8")))
     meta_json = json.loads((fixture_dir / "meta.json").read_text(encoding="utf-8"))
     FixtureMetaFileModel.model_validate(meta_json)
     assert "raw_ref" not in meta_json
     assert request.url == "https://shop.example.com/epood/cart/change/456?format=table&lang=en&include=totals"
     assert "cookie" not in {header.lower() for header in request.headers}
     assert "x-xsrf-token" not in {header.lower() for header in request.headers}
+    response_header_names = {header.lower() for header in response.headers}
+    assert "content-type" in response_header_names
+    assert "set-cookie" not in response_header_names
+    assert "x-session-id" not in response_header_names
+    assert "x-csrf-token" not in response_header_names
     assert (fixture_dir / "request.body").read_bytes() == b'{"delta": 2, "mode": "soft"}'
     assert (fixture_dir / "response.body").read_bytes() == b'{"ok": true}'
     assert not (command_dir / "raw").exists()

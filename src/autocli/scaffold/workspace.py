@@ -26,6 +26,8 @@ SESSION_SENSITIVE_HEADER_NAMES = {
     "authorization",
     "cookie",
     "csrf-token",
+    "set-cookie",
+    "set-cookie2",
     "x-csrf-token",
     "x-requested-with",
     "x-xsrf-token",
@@ -254,7 +256,7 @@ def build_case_payloads(command: dict[str, Any]) -> list[dict[str, Any]]:
         }
         response_json = {
             "status": sample["response"]["status"],
-            "headers": sample["response"]["headers"],
+            "headers": strip_session_sensitive_headers(sample["response"]["headers"]),
         }
         meta_json = {
             "command_id": command["id"],
