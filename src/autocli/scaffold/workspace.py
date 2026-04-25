@@ -16,6 +16,8 @@ from autocli.scaffold.render import (
     render_agents_md,
     render_command_module,
     render_site_package,
+    render_workspace_env,
+    render_workspace_env_example,
     render_workspace_pyproject,
 )
 
@@ -192,6 +194,8 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
             command_root=str(config["command_root"]),
         ),
     )
+    write_text_if_missing(output_dir / ".env", render_workspace_env())
+    write_text_if_missing(output_dir / ".env.example", render_workspace_env_example())
     for relative_path, content in render_site_package(str(config["site_slug"])).items():
         write_text_if_missing(site_dir / relative_path, content)
 

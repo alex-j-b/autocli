@@ -262,7 +262,7 @@ def test_generated_runtime_fixture_tests_replay_through_generated_cli_with_live_
     assert read_command_complete(command_dir) is True
 
 
-def test_generated_runtime_fixture_tests_require_playwright_headers_json(tmp_path: Path) -> None:
+def test_generated_runtime_fixture_tests_use_scaffolded_dotenv_placeholder(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     result = build_workspace(
         workspace,
@@ -277,9 +277,9 @@ def test_generated_runtime_fixture_tests_require_playwright_headers_json(tmp_pat
 
     pytest_result = run_workspace_pytest(workspace, command_dir / "tests" / "test_command.py")
 
-    assert pytest_result.returncode != 0
-    assert "PLAYWRIGHT_HEADERS_JSON is required for generated fixture tests" in pytest_result.stdout + pytest_result.stderr
-    assert read_command_complete(command_dir) is False
+    assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
+    assert (workspace / ".env").read_text(encoding="utf-8") == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
+    assert read_command_complete(command_dir) is True
 
 
 def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path: Path) -> None:

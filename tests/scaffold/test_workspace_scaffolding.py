@@ -129,6 +129,8 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     agents_path = workspace / "AGENTS.md"
     assert (workspace / "shared" / "__init__.py").exists()
     assert (workspace / "commands" / "__init__.py").exists()
+    assert (workspace / ".env").read_text(encoding="utf-8") == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
+    assert (workspace / ".env.example").read_text(encoding="utf-8") == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
     assert agents_path.exists()
     assert (site_dir / "__init__.py").exists()
     assert (site_dir / "__main__.py").exists()
@@ -204,6 +206,8 @@ def test_bootstrap_workspace_is_append_only_on_rerun(tmp_path: Path) -> None:
     assert pre_stub.read_text(encoding="utf-8") == "custom pre-processor\n"
     assert len(list((existing_command_dir / "fixtures").iterdir())) == 1
     assert (workspace / "AGENTS.md").exists()
+    assert (workspace / ".env").exists()
+    assert (workspace / ".env.example").exists()
     assert (
         workspace / "commands" / "get__h_shop_example_com__s_api__s_inventory__p_p1__s_full" / "command.yaml"
     ).exists()

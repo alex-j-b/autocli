@@ -21,6 +21,8 @@ WORKSPACE_RUNTIME_DEPENDENCIES = [
     "typer>=0.16,<1",
 ]
 
+WORKSPACE_ENV_PLACEHOLDER = 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
+
 
 def render_workspace_pyproject(
     *,
@@ -114,6 +116,18 @@ def render_agents_md(*, site_module: str, cli_name: str, command_root: str = "co
 - Passing generated tests for that command.
 - A short summary of the final JSON output contract, assumptions, fixes, and remaining risks.
 """
+
+
+def render_workspace_env() -> str:
+    """Render the generated workspace ``.env`` placeholder."""
+
+    return WORKSPACE_ENV_PLACEHOLDER
+
+
+def render_workspace_env_example() -> str:
+    """Render the generated workspace ``.env.example`` placeholder."""
+
+    return WORKSPACE_ENV_PLACEHOLDER
 
 
 def derive_short_script_name(primary_hosts: list[str], site_slug: str) -> str:
