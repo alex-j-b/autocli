@@ -14,7 +14,7 @@ from autocli.cli import app
 from autocli.compiler.schema import compile_command_candidates
 from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureRequestFileModel, FixtureResponseFileModel
 from autocli.scaffold import bootstrap_workspace
-from autocli.scaffold.render import render_agents_md, render_build_cli_skill
+from autocli.scaffold.render import render_agents_md, render_build_cli_skill, render_workspace_gitignore
 
 
 def make_exchange(
@@ -137,6 +137,7 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     build_cli_skill_path = workspace / "skills" / "build-cli" / "SKILL.md"
     assert (workspace / "shared" / "__init__.py").exists()
     assert (workspace / "commands" / "__init__.py").exists()
+    assert (workspace / ".gitignore").read_text(encoding="utf-8") == render_workspace_gitignore()
     assert (workspace / ".env").read_text(encoding="utf-8") == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
     assert (workspace / ".env.example").read_text(encoding="utf-8") == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
     assert agents_path.exists()
@@ -175,6 +176,39 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     assert (fixture_dir / "response.body").read_bytes() == b'{"ok": true}'
     assert not (command_dir / "raw").exists()
     assert (command_dir / "goldens").is_dir()
+
+    gitignore_rules = {
+        line
+        for line in (workspace / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    }
+    assert {
+        ".env",
+        "__pycache__/",
+        "*.py[cod]",
+        ".pytest_cache/",
+        "build/",
+        "dist/",
+        "*.egg-info/",
+        ".eggs/",
+        ".venv/",
+        "venv/",
+        "env/",
+        "ENV/",
+    } <= gitignore_rules
+    assert not {
+        "commands/",
+        "fixtures/",
+        "goldens/",
+        "shared/",
+        "skills/",
+        "command.yaml",
+        "processors/",
+        "tests/",
+        "*.json",
+        "*.yaml",
+        "*.body",
+    } & gitignore_rules
 
     generated_test = (command_dir / "tests" / "test_command.py").read_text(encoding="utf-8")
     assert "from shop_example_com.testing import run_command_contract" in generated_test
@@ -222,6 +256,7 @@ def test_bootstrap_workspace_is_append_only_on_rerun(tmp_path: Path) -> None:
     assert len(list((existing_command_dir / "fixtures").iterdir())) == 1
     assert (workspace / "AGENTS.md").exists()
     assert (workspace / "skills" / "build-cli" / "SKILL.md").exists()
+    assert (workspace / ".gitignore").exists()
     assert (workspace / ".env").exists()
     assert (workspace / ".env.example").exists()
     assert (

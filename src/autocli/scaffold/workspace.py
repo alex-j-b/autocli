@@ -19,6 +19,7 @@ from autocli.scaffold.render import (
     render_site_package,
     render_workspace_env,
     render_workspace_env_example,
+    render_workspace_gitignore,
     render_workspace_pyproject,
 )
 
@@ -200,6 +201,7 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
         ),
     )
     write_text_if_missing(build_cli_skill_path, render_build_cli_skill())
+    write_text_if_missing(output_dir / ".gitignore", render_workspace_gitignore())
     write_text_if_missing(output_dir / ".env", render_workspace_env())
     write_text_if_missing(output_dir / ".env.example", render_workspace_env_example())
     for relative_path, content in render_site_package(str(config["site_slug"])).items():

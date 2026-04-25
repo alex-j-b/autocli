@@ -24,6 +24,28 @@ WORKSPACE_RUNTIME_DEPENDENCIES = [
 WORKSPACE_ENV_PLACEHOLDER = 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
 
 
+def render_workspace_gitignore() -> str:
+    """Render the generated workspace ``.gitignore``."""
+
+    return """.env
+
+__pycache__/
+*.py[cod]
+
+.pytest_cache/
+
+build/
+dist/
+*.egg-info/
+.eggs/
+
+.venv/
+venv/
+env/
+ENV/
+"""
+
+
 def render_workspace_pyproject(
     *,
     site_slug: str,
