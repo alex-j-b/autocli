@@ -10,6 +10,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from autocli.headers import strip_session_sensitive_headers
 from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureRequestFileModel, FixtureResponseFileModel
 from autocli.scaffold.render import (
     normalize_executable_name,
@@ -22,20 +23,6 @@ from autocli.scaffold.render import (
     render_workspace_gitignore,
     render_workspace_pyproject,
 )
-
-SESSION_SENSITIVE_HEADER_NAMES = {
-    "authorization",
-    "cookie",
-    "csrf-token",
-    "set-cookie",
-    "set-cookie2",
-    "x-csrf-token",
-    "x-requested-with",
-    "x-xsrf-token",
-    "xsrf-token",
-}
-SESSION_SENSITIVE_HEADER_SUBSTRINGS = ("auth", "csrf", "session", "token")
-
 
 def bootstrap_workspace(
     output_dir: Path,
@@ -357,23 +344,6 @@ def case_id_base(cli_path: list[str]) -> str:
 
     tokens = [segment.replace("-", "_") for segment in cli_path if segment]
     return "_".join(tokens)
-
-
-def strip_session_sensitive_headers(headers: dict[str, Any]) -> dict[str, Any]:
-    """Remove headers that must be supplied through PLAYWRIGHT_HEADERS_JSON at runtime."""
-
-    return {name: value for name, value in headers.items() if not is_session_sensitive_header(name)}
-
-
-def is_session_sensitive_header(header_name: str) -> bool:
-    """Return whether a header should never be persisted in generated fixtures."""
-
-    normalized = header_name.lower()
-    if normalized in SESSION_SENSITIVE_HEADER_NAMES:
-        return True
-    if normalized.startswith("sec-"):
-        return True
-    return any(token in normalized for token in SESSION_SENSITIVE_HEADER_SUBSTRINGS)
 
 
 def write_text_if_missing(path: Path, content: str) -> None:
