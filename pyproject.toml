@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autocli"
+version = "0.1.0"
+description = "Factory for building per-site CLIs from recorded traffic"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  { name = "Alexis Boix" },
+]
+dependencies = [
+  "httpx>=0.27,<1",
+  "mitmproxy>=11,<12",
+  "msgpack>=1,<2",
+  "pydantic>=2.8,<3",
+  "PyYAML>=6,<7",
+  "rich>=13.7,<14",
+  "typer>=0.16,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+]
+
+[project.scripts]
+autocli = "autocli.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
