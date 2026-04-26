@@ -17,9 +17,12 @@ WORKSPACE_RUNTIME_DEPENDENCIES = [
     "pydantic>=2.8,<3",
     "python-dotenv>=1,<2",
     "PyYAML>=6,<7",
-    "pytest>=8.3,<9",
     "rich>=13.7,<14",
     "typer>=0.16,<1",
+]
+
+WORKSPACE_DEV_DEPENDENCIES = [
+    "pytest>=8.3,<9",
 ]
 
 
@@ -31,7 +34,7 @@ def render_workspace_gitignore() -> str:
 
 def render_workspace_pyproject(
     *,
-    cli_name: str,
+    executable_name: str,
     site_slug: str,
     site_module: str,
     primary_hosts: list[str],
@@ -40,21 +43,22 @@ def render_workspace_pyproject(
 
     return render_template(
         "scaffold/workspace_pyproject.toml.j2",
-        cli_name=cli_name,
+        executable_name=executable_name,
         site_slug=site_slug,
         site_module=site_module,
-        dependencies_block=",\n".join(f'  "{dependency}"' for dependency in WORKSPACE_RUNTIME_DEPENDENCIES),
+        runtime_dependencies_block=",\n".join(f'  "{dependency}"' for dependency in WORKSPACE_RUNTIME_DEPENDENCIES),
+        dev_dependencies_block=",\n".join(f'  "{dependency}"' for dependency in WORKSPACE_DEV_DEPENDENCIES),
         hosts_inline=", ".join(f'"{host}"' for host in primary_hosts),
     )
 
 
-def render_agents_md(*, site_module: str, cli_name: str, command_root: str = "commands") -> str:
+def render_agents_md(*, site_module: str, executable_name: str, command_root: str = "commands") -> str:
     """Render the generated workspace ``AGENTS.md`` guidance."""
 
     return render_template(
         "scaffold/agents.md.j2",
         site_module=site_module,
-        cli_name=cli_name,
+        executable_name=executable_name,
         command_root=command_root,
     )
 
@@ -77,12 +81,14 @@ def render_workspace_env_example() -> str:
     return render_template("scaffold/workspace_env.j2")
 
 
-def normalize_cli_name(raw_name: str, *, fallback: str) -> str:
-    """Normalize a workspace folder name into a console-script-safe CLI name."""
+def normalize_executable_name(raw_name: str, *, fallback: str | None = None) -> str:
+    """Normalize an installed executable name into a console-script-safe token."""
 
     normalized = re.sub(r"[^a-z0-9]+", "-", raw_name.lower()).strip("-")
     if normalized:
         return normalized
+    if fallback is None:
+        raise ValueError("command name must contain at least one ASCII letter or digit")
     fallback_name = re.sub(r"[^a-z0-9]+", "-", fallback.lower()).strip("-")
     return fallback_name or "generated-cli"
 

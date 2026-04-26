@@ -36,6 +36,13 @@ def build(
         Path,
         typer.Option("--output-dir", help="Target workspace directory."),
     ] = Path("."),
+    executable_name: Annotated[
+        str | None,
+        typer.Option(
+            "--executable-name",
+            help="Installed executable name for a new generated workspace.",
+        ),
+    ] = None,
 ) -> None:
     """Compile a capture into a generated workspace."""
 
@@ -54,7 +61,7 @@ def build(
         raise typer.Exit(code=1)
 
     try:
-        result = bootstrap_workspace(output_dir, compiled_commands=compiled_commands)
+        result = bootstrap_workspace(output_dir, compiled_commands=compiled_commands, executable_name=executable_name)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc

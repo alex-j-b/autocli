@@ -12,7 +12,7 @@ from typing import Any
 
 from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureRequestFileModel, FixtureResponseFileModel
 from autocli.scaffold.render import (
-    derive_short_script_name,
+    normalize_executable_name,
     render_agents_md,
     render_build_cli_skill,
     render_command_module,
@@ -37,7 +37,12 @@ SESSION_SENSITIVE_HEADER_NAMES = {
 SESSION_SENSITIVE_HEADER_SUBSTRINGS = ("auth", "csrf", "session", "token")
 
 
-def bootstrap_workspace(output_dir: Path, *, compiled_commands: list[dict[str, Any]]) -> dict[str, Any]:
+def bootstrap_workspace(
+    output_dir: Path,
+    *,
+    compiled_commands: list[dict[str, Any]],
+    executable_name: str | None = None,
+) -> dict[str, Any]:
     """Bootstrap or extend a generated workspace."""
 
     output_dir = output_dir.resolve()
@@ -46,9 +51,14 @@ def bootstrap_workspace(output_dir: Path, *, compiled_commands: list[dict[str, A
     config = load_workspace_config(output_dir)
     if config is None:
         ensure_bootstrap_target_is_clean(output_dir)
-        config = derive_workspace_config(compiled_commands)
+        config = derive_workspace_config(output_dir, compiled_commands, executable_name=executable_name)
         initialize_workspace(output_dir, config)
     else:
+        if executable_name is not None and derive_executable_name(config) != normalize_executable_name(executable_name):
+            raise ValueError(
+                f"{output_dir} already exists with installed executable name {derive_executable_name(config)!r}. "
+                "Remove the workspace to recreate it with a different --executable-name."
+            )
         ensure_workspace_scaffold(output_dir, config)
 
     created_command_ids: list[str] = []
@@ -90,12 +100,21 @@ def load_workspace_config(output_dir: Path) -> dict[str, Any] | None:
     if tool_config is None:
         raise ValueError(f"{pyproject_path} already exists but is not an autocli workspace")
 
-    required_fields = {"schema_version", "site_slug", "site_module", "primary_hosts", "command_root", "shared_package"}
-    missing = sorted(required_fields - set(tool_config))
+    config = dict(tool_config)
+    required_fields = {
+        "schema_version",
+        "executable_name",
+        "site_slug",
+        "site_module",
+        "primary_hosts",
+        "command_root",
+        "shared_package",
+    }
+    missing = sorted(required_fields - set(config))
     if missing:
         missing_text = ", ".join(missing)
         raise ValueError(f"{pyproject_path} is missing required [tool.autocli] fields: {missing_text}")
-    return dict(tool_config)
+    return config
 
 
 def ensure_bootstrap_target_is_clean(output_dir: Path) -> None:
@@ -110,7 +129,12 @@ def ensure_bootstrap_target_is_clean(output_dir: Path) -> None:
         )
 
 
-def derive_workspace_config(compiled_commands: list[dict[str, Any]]) -> dict[str, Any]:
+def derive_workspace_config(
+    output_dir: Path,
+    compiled_commands: list[dict[str, Any]],
+    *,
+    executable_name: str | None = None,
+) -> dict[str, Any]:
     """Derive initial workspace metadata from compiled commands."""
 
     host_counts: Counter[str] = Counter()
@@ -131,9 +155,15 @@ def derive_workspace_config(compiled_commands: list[dict[str, Any]]) -> dict[str
     primary_hosts = [host for host, _ in sorted(host_counts.items(), key=lambda item: (-item[1], item[0]))]
     site_slug = host_to_site_slug(dominant_host)
     site_module = site_slug_to_module_name(site_slug)
+    resolved_executable_name = (
+        normalize_executable_name(executable_name)
+        if executable_name is not None
+        else normalize_executable_name(output_dir.name, fallback=site_slug)
+    )
 
     return {
         "schema_version": 1,
+        "executable_name": resolved_executable_name,
         "site_slug": site_slug,
         "site_module": site_module,
         "primary_hosts": primary_hosts,
@@ -170,6 +200,7 @@ def initialize_workspace(output_dir: Path, config: dict[str, Any]) -> None:
     write_text_file(
         pyproject_path,
         render_workspace_pyproject(
+            executable_name=derive_executable_name(config),
             site_slug=str(config["site_slug"]),
             site_module=str(config["site_module"]),
             primary_hosts=list(config["primary_hosts"]),
@@ -196,7 +227,7 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
         output_dir / "AGENTS.md",
         render_agents_md(
             site_module=str(config["site_module"]),
-            cli_name=derive_cli_name(config),
+            executable_name=derive_executable_name(config),
             command_root=str(config["command_root"]),
         ),
     )
@@ -208,10 +239,10 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
         write_text_if_missing(site_dir / relative_path, content)
 
 
-def derive_cli_name(config: dict[str, Any]) -> str:
-    """Derive the generated CLI command name from workspace config."""
+def derive_executable_name(config: dict[str, Any]) -> str:
+    """Derive the generated installed executable name from workspace config."""
 
-    return derive_short_script_name(list(config["primary_hosts"]), str(config["site_slug"]))
+    return str(config["executable_name"])
 
 
 def write_command_tree(output_dir: Path, config: dict[str, Any], command: dict[str, Any]) -> None:

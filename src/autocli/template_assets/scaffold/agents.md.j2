@@ -48,6 +48,6 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 ## Useful Commands
 
 - Install CLI tool: `uv tool install --editable .`
-- CLI help: `{{ cli_name }} --help` or `python -m {{ site_module }} --help`
-- Command help: `{{ cli_name }} <command path> --help`
-- Contract tests: `python -m pytest -q {{ command_root }}/<command_id>/tests/test_command.py`
+- CLI help: `{{ executable_name }} --help` or `python -m {{ site_module }} --help`
+- Command help: `{{ executable_name }} <command path> --help`
+- Contract tests: `uv run pytest -q {{ command_root }}/<command_id>/tests/test_command.py`

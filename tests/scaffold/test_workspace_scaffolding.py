@@ -6,77 +6,13 @@ from pathlib import Path
 
 import pytest
 import yaml
-from mitmproxy import connection, http, io
 from typer.testing import CliRunner
 
-from autocli.capture import normalize_exchange
 from autocli.cli import app
-from autocli.compiler.schema import compile_command_candidates
 from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureRequestFileModel, FixtureResponseFileModel
 from autocli.scaffold import bootstrap_workspace
 from autocli.scaffold.render import render_agents_md, render_build_cli_skill, render_workspace_gitignore
-
-
-def make_exchange(
-    method: str,
-    url: str,
-    *,
-    request_headers: dict[str, str] | None = None,
-    request_body: bytes = b"",
-    response_headers: dict[str, str] | None = None,
-    response_body: bytes = b'{"ok": true}',
-    status: int = 200,
-    source_id: str = "1",
-) -> dict[str, object]:
-    return normalize_exchange(
-        {
-            "source": {
-                "format": "flow",
-                "source_path": "/tmp/sample.flow",
-                "capture_id": source_id,
-                "captured_at": "2026-04-11T09:15:00Z",
-            },
-            "request": {
-                "method": method,
-                "url": url,
-                "headers": request_headers or {},
-                "body": request_body,
-            },
-            "response": {
-                "status": status,
-                "headers": response_headers or {"Content-Type": "application/json"},
-                "body": response_body,
-            },
-        }
-    )
-
-
-def build_compiled_commands(exchanges: list[dict[str, object]]) -> list[dict[str, object]]:
-    return compile_command_candidates(exchanges)
-
-
-def write_flow_capture(path: Path, exchanges: list[dict[str, object]]) -> None:
-    with path.open("wb") as handle:
-        writer = io.FlowWriter(handle)
-        for exchange in exchanges:
-            request = exchange["request"]
-            response = exchange["response"]
-            flow = http.HTTPFlow(
-                client_conn=connection.Client(peername=("127.0.0.1", 1111), sockname=("127.0.0.1", 8080)),
-                server_conn=connection.Server(address=(request["host"], request["port"])),
-            )
-            flow.request = http.Request.make(
-                request["method"],
-                request["url"],
-                content=bytes(request["body"]),
-                headers=request["headers"],
-            )
-            flow.response = http.Response.make(
-                int(response["status"]),
-                content=bytes(response["body"]),
-                headers=response["headers"],
-            )
-            writer.add(flow)
+from tests.support import build_compiled_commands, make_exchange, write_flow_capture
 
 
 def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None:
@@ -118,13 +54,26 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     assert result["created_command_ids"] == ["put__h_shop_example_com__s_epood__s_cart__s_change__p_p1"]
 
     pyproject = tomllib.loads((workspace / "pyproject.toml").read_text(encoding="utf-8"))
-    assert pyproject["project"]["name"] == "example"
-    assert pyproject["project"]["description"] == "Generated CLI workspace for example"
+    assert pyproject["project"]["name"] == "workspace"
+    assert pyproject["project"]["description"] == "Generated CLI workspace for workspace"
     assert pyproject["project"]["scripts"] == {
-        "example": "shop_example_com.cli:app",
+        "workspace": "shop_example_com.cli:app",
+    }
+    assert pyproject["project"]["dependencies"] == [
+        "httpx>=0.27,<1",
+        "msgpack>=1,<2",
+        "pydantic>=2.8,<3",
+        "python-dotenv>=1,<2",
+        "PyYAML>=6,<7",
+        "rich>=13.7,<14",
+        "typer>=0.16,<1",
+    ]
+    assert pyproject["dependency-groups"] == {
+        "dev": ["pytest>=8.3,<9"],
     }
     assert pyproject["tool"]["autocli"] == {
         "schema_version": 1,
+        "executable_name": "workspace",
         "site_slug": "shop-example-com",
         "site_module": "shop_example_com",
         "primary_hosts": ["shop.example.com"],
@@ -221,7 +170,7 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     assert "def run_command_contract(command_dir: Path) -> None:" in testing_source
     assert agents_path.read_text(encoding="utf-8") == render_agents_md(
         site_module="shop_example_com",
-        cli_name="example",
+        executable_name="workspace",
     )
     assert build_cli_skill_path.read_text(encoding="utf-8") == render_build_cli_skill()
 
@@ -263,6 +212,70 @@ def test_bootstrap_workspace_is_append_only_on_rerun(tmp_path: Path) -> None:
     assert (
         workspace / "commands" / "get__h_shop_example_com__s_api__s_inventory__p_p1__s_full" / "command.yaml"
     ).exists()
+    pyproject = tomllib.loads((workspace / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pyproject["project"]["name"] == "workspace"
+    assert pyproject["project"]["scripts"] == {"workspace": "shop_example_com.cli:app"}
+
+
+def test_bootstrap_workspace_uses_sanitized_output_dir_name_for_default_executable_name(tmp_path: Path) -> None:
+    workspace = tmp_path / "My Workspace CLI!"
+    compiled_commands = build_compiled_commands(
+        [
+            make_exchange("GET", "https://shop.example.com/api/products/123", source_id="1"),
+            make_exchange("GET", "https://shop.example.com/api/products/456", source_id="2"),
+        ]
+    )
+
+    bootstrap_workspace(workspace, compiled_commands=compiled_commands)
+
+    pyproject = tomllib.loads((workspace / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pyproject["project"]["name"] == "my-workspace-cli"
+    assert pyproject["project"]["scripts"] == {"my-workspace-cli": "shop_example_com.cli:app"}
+    assert pyproject["tool"]["autocli"]["executable_name"] == "my-workspace-cli"
+
+
+def test_bootstrap_workspace_uses_custom_executable_name_override(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    compiled_commands = build_compiled_commands(
+        [
+            make_exchange("GET", "https://shop.example.com/api/products/123", source_id="1"),
+            make_exchange("GET", "https://shop.example.com/api/products/456", source_id="2"),
+        ]
+    )
+
+    bootstrap_workspace(workspace, compiled_commands=compiled_commands, executable_name="custom tool")
+
+    pyproject = tomllib.loads((workspace / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pyproject["project"]["name"] == "custom-tool"
+    assert pyproject["project"]["scripts"] == {"custom-tool": "shop_example_com.cli:app"}
+    assert pyproject["tool"]["autocli"]["executable_name"] == "custom-tool"
+
+
+def test_bootstrap_workspace_requires_executable_name_in_existing_workspace(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    initial_commands = build_compiled_commands(
+        [
+            make_exchange("GET", "https://shop.example.com/api/products/123", source_id="1"),
+            make_exchange("GET", "https://shop.example.com/api/products/456", source_id="2"),
+        ]
+    )
+    bootstrap_workspace(workspace, compiled_commands=initial_commands)
+
+    pyproject_path = workspace / "pyproject.toml"
+    pyproject_text = pyproject_path.read_text(encoding="utf-8")
+    pyproject_path.write_text(pyproject_text.replace('executable_name = "workspace"\n', ""), encoding="utf-8")
+
+    rerun_commands = build_compiled_commands(
+        [
+            make_exchange("GET", "https://shop.example.com/api/products/123", source_id="1"),
+            make_exchange("GET", "https://shop.example.com/api/products/456", source_id="2"),
+            make_exchange("GET", "https://shop.example.com/api/inventory/123/full", source_id="3"),
+            make_exchange("GET", "https://shop.example.com/api/inventory/456/full", source_id="4"),
+        ]
+    )
+
+    with pytest.raises(ValueError, match=r"missing required \[tool\.autocli\] fields: executable_name"):
+        bootstrap_workspace(workspace, compiled_commands=rerun_commands)
 
 
 def test_bootstrap_workspace_rejects_ambiguous_initial_host(tmp_path: Path) -> None:
@@ -326,6 +339,105 @@ def test_record_command_generates_workspace_from_flow(tmp_path: Path) -> None:
     assert f"Next: uv tool install -e {output_dir.resolve()}" in result.output
     assert f"Next: use refinement skill {output_dir.resolve() / 'skills' / 'build-cli' / 'SKILL.md'}" in result.output
     assert (output_dir / "commands" / "get__h_shop_example_com__s_api__s_products__p_p1" / "command.yaml").exists()
+
+
+def test_build_accepts_custom_executable_name_option(tmp_path: Path) -> None:
+    capture_path = tmp_path / "capture.flow"
+    write_flow_capture(
+        capture_path,
+        [
+            {
+                "request": {
+                    "method": "GET",
+                    "url": "https://shop.example.com/api/products/123",
+                    "host": "shop.example.com",
+                    "port": 443,
+                    "headers": {"Accept": "application/json"},
+                    "body": b"",
+                },
+                "response": {
+                    "status": 200,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": b'{"id":"123"}',
+                },
+            },
+            {
+                "request": {
+                    "method": "GET",
+                    "url": "https://shop.example.com/api/products/456",
+                    "host": "shop.example.com",
+                    "port": 443,
+                    "headers": {"Accept": "application/json"},
+                    "body": b"",
+                },
+                "response": {
+                    "status": 200,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": b'{"id":"456"}',
+                },
+            },
+        ],
+    )
+
+    runner = CliRunner()
+    output_dir = tmp_path / "generated"
+    result = runner.invoke(
+        app,
+        ["build", str(capture_path), "--output-dir", str(output_dir), "--executable-name", "custom tool"],
+    )
+
+    assert result.exit_code == 0, result.output
+    pyproject = tomllib.loads((output_dir / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pyproject["project"]["scripts"] == {"custom-tool": "shop_example_com.cli:app"}
+    assert pyproject["tool"]["autocli"]["executable_name"] == "custom-tool"
+
+
+def test_build_rejects_legacy_command_name_option(tmp_path: Path) -> None:
+    capture_path = tmp_path / "capture.flow"
+    write_flow_capture(
+        capture_path,
+        [
+            {
+                "request": {
+                    "method": "GET",
+                    "url": "https://shop.example.com/api/products/123",
+                    "host": "shop.example.com",
+                    "port": 443,
+                    "headers": {"Accept": "application/json"},
+                    "body": b"",
+                },
+                "response": {
+                    "status": 200,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": b'{"id":"123"}',
+                },
+            },
+            {
+                "request": {
+                    "method": "GET",
+                    "url": "https://shop.example.com/api/products/456",
+                    "host": "shop.example.com",
+                    "port": 443,
+                    "headers": {"Accept": "application/json"},
+                    "body": b"",
+                },
+                "response": {
+                    "status": 200,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": b'{"id":"456"}',
+                },
+            },
+        ],
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["build", str(capture_path), "--output-dir", str(tmp_path / "generated"), "--command-name", "custom-tool"],
+    )
+
+    assert result.exit_code != 0
+    assert "No such option: --command-name" in result.output
 
 
 def test_build_ignores_unsupported_capture_file(tmp_path: Path) -> None:
