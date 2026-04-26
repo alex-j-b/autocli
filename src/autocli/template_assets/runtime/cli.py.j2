@@ -1,0 +1,10 @@
+"""Generated CLI entrypoint."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from .runtime import build_app
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+app = build_app(WORKSPACE_ROOT)

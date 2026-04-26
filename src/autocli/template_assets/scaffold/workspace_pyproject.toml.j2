@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "{{ cli_name }}"
+version = "0.1.0"
+description = "Generated CLI workspace for {{ cli_name }}"
+requires-python = ">=3.12"
+dependencies = [
+{{ dependencies_block }}
+]
+
+[project.scripts]
+{{ cli_name }} = "{{ site_module }}.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["commands*", "shared*", "{{ site_module }}*"]
+
+[tool.autocli]
+schema_version = 1
+cli_name = "{{ cli_name }}"
+site_slug = "{{ site_slug }}"
+site_module = "{{ site_module }}"
+primary_hosts = [{{ hosts_inline }}]
+command_root = "commands"
+shared_package = "shared"

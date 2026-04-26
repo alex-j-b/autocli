@@ -1,0 +1,11 @@
+"""Generated command-contract test."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from {{ site_module }}.testing import run_command_contract
+
+
+def test_command_contract() -> None:
+    run_command_contract(Path(__file__).resolve().parents[1])
