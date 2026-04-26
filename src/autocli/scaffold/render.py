@@ -28,6 +28,7 @@ def render_workspace_gitignore() -> str:
     """Render the generated workspace ``.gitignore``."""
 
     return """.env
+.autocli-playwright-storage-state.json
 
 __pycache__/
 *.py[cod]
@@ -108,7 +109,7 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - `{site_module}/runtime.py`: workspace-local CLI runtime.
 - `{site_module}/testing.py`: workspace-local contract test helpers.
 - `skills/build-cli/SKILL.md`: iterative workflow for developing this CLI with user feedback.
-- `.env`: local runtime environment. `PLAYWRIGHT_HEADERS_JSON` can supply live-session headers.
+- `.env`: local runtime environment. `PLAYWRIGHT_HEADERS_JSON` supply live-session headers.
 - `.env.example`: example environment file.
 
 ## Governing Principles
@@ -120,7 +121,6 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - Goldens must reflect intentionally approved post-processed JSON, not raw transport bodies.
 - Keep output schemas explicit and stable once approved.
 - If the response is HTML, parse it structurally when possible.
-- Session-sensitive headers should come from `PLAYWRIGHT_HEADERS_JSON`, not persisted fixtures.
 
 ## Working With This Workspace
 
@@ -144,7 +144,6 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - CLI help: `{cli_name} --help` or `python -m {site_module} --help`
 - Command help: `{cli_name} <command path> --help`
 - Contract tests: `python -m pytest -q {command_root}/<command_id>/tests/test_command.py`
-- Live authenticated runs can use `PLAYWRIGHT_HEADERS_JSON={{...}}` in `.env`
 """
 
 
@@ -159,7 +158,12 @@ Use this skill when shaping a generated `autocli` workspace into a user-approved
 
 - Initialize git for the workspace if it is not already initialized.
 - Make an initial commit before changing generated files when there is no existing history.
-- Ensure `.env` contains `PLAYWRIGHT_HEADERS_JSON` with headers that can access the target site.
+- Ensure `.env` contains `PLAYWRIGHT_HEADERS_JSON` with headers that can access the target site. To capture fresh live-session headers without printing them in the conversation:
+  - In Playwright, wait for a representative authenticated request and call `await request.allHeaders()`.
+  - Write `JSON.stringify({ headers })` to a temporary local storage key such as `autocli.playwrightHeadersJson`.
+  - Persist the browser context to the generated workspace's absolute `.autocli-playwright-storage-state.json` path, for example `await page.context().storageState({ path: "/absolute/path/to/generated-workspace/.autocli-playwright-storage-state.json" })`.
+  - Read the saved storage-state file locally, extract the temporary local storage value, and write `.env` as `PLAYWRIGHT_HEADERS_JSON=<that value>`.
+  - After the storage state has been written, remove the temporary local storage key with `localStorage.removeItem("autocli.playwrightHeadersJson")`.
 - If headers are missing or stale, use Playwright to visit the site and ask the user to log in when needed.
 - Non-mutating requests may be used for discovery when they are useful for understanding the API or output shape.
 - Ask for explicit permission before calling mutating endpoints.

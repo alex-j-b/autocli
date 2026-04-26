@@ -184,6 +184,7 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     }
     assert {
         ".env",
+        ".autocli-playwright-storage-state.json",
         "__pycache__/",
         "*.py[cod]",
         ".pytest_cache/",
