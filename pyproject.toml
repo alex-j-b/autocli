@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,8 +8,28 @@ version = "0.1.0"
 description = "Factory for building per-site CLIs from recorded traffic"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   { name = "Alexis Boix" },
+]
+keywords = [
+  "cli",
+  "code-generation",
+  "http",
+  "mitmproxy",
+  "traffic-capture",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Code Generators",
+  "Topic :: Utilities",
 ]
 dependencies = [
   "httpx>=0.27,<1",
@@ -30,6 +50,12 @@ dev = [
 
 [project.scripts]
 autocli = "autocli.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/alex-j-b/autocli"
+Repository = "https://github.com/alex-j-b/autocli"
+Issues = "https://github.com/alex-j-b/autocli/issues"
+Documentation = "https://github.com/alex-j-b/autocli#readme"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
