@@ -13,10 +13,11 @@ from autocli.capture.formats import CaptureFormat, detect_capture_format
 def read_capture(path: Path, *, requested_format: CaptureFormat = "auto") -> list[dict[str, Any]]:
     """Read a capture file into raw exchange records."""
 
-    if path.suffix and path.suffix.lower() != ".flow":
-        return []
-    detect_capture_format(path, requested_format=requested_format)
-    return read_flow_capture(path)
+    capture_format = detect_capture_format(path, requested_format=requested_format)
+    if capture_format == "flow":
+        return read_flow_capture(path)
+
+    raise AssertionError(f"unexpected capture format: {capture_format}")
 
 
 def read_flow_capture(path: Path) -> list[dict[str, Any]]:

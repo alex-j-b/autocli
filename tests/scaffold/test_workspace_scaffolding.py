@@ -440,7 +440,7 @@ def test_build_rejects_legacy_command_name_option(tmp_path: Path) -> None:
     assert "No such option: --command-name" in result.output
 
 
-def test_build_ignores_unsupported_capture_file(tmp_path: Path) -> None:
+def test_build_rejects_unsupported_capture_file(tmp_path: Path) -> None:
     capture_path = tmp_path / "capture.json"
     capture_path.write_text("{}", encoding="utf-8")
 
@@ -448,4 +448,5 @@ def test_build_ignores_unsupported_capture_file(tmp_path: Path) -> None:
     result = runner.invoke(app, ["build", str(capture_path), "--output-dir", str(tmp_path / "generated")])
 
     assert result.exit_code != 0
-    assert "No command-bearing exchanges were accepted from the capture." in result.output
+    assert "unsupported capture file extension '.json'" in result.output
+    assert "suffixless flow capture" in result.output

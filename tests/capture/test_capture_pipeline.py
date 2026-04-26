@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import msgpack
+import pytest
 from mitmproxy import connection, http, io
 
 from autocli.capture import (
@@ -12,21 +13,42 @@ from autocli.capture import (
 )
 
 
-def test_detect_capture_format_uses_extension_and_content(tmp_path) -> None:
+def test_detect_capture_format_accepts_flow_and_suffixless_paths(tmp_path) -> None:
     flow_path = tmp_path / "sample.flow"
     flow_path.write_bytes(b"binary-flow")
     assert detect_capture_format(flow_path) == "flow"
 
-    unknown_path = tmp_path / "capture.bin"
-    unknown_path.write_bytes(b"binary-flow")
-    assert detect_capture_format(unknown_path) == "flow"
+    suffixless_path = tmp_path / "capture"
+    suffixless_path.write_bytes(b"binary-flow")
+    assert detect_capture_format(suffixless_path) == "flow"
 
 
-def test_read_capture_skips_unsupported_capture_files(tmp_path) -> None:
+def test_detect_capture_format_rejects_unsupported_suffix(tmp_path) -> None:
+    capture_path = tmp_path / "capture.bin"
+    capture_path.write_bytes(b"binary-flow")
+
+    with pytest.raises(
+        ValueError,
+        match=r"unsupported capture file extension '.bin'.*expected a \.flow file or a suffixless flow capture",
+    ):
+        detect_capture_format(capture_path)
+
+
+def test_read_capture_rejects_unsupported_capture_files(tmp_path) -> None:
     capture_path = tmp_path / "sample.json"
     capture_path.write_text("{}", encoding="utf-8")
 
-    assert read_capture(capture_path) == []
+    with pytest.raises(
+        ValueError,
+        match=r"unsupported capture file extension '.json'.*expected a \.flow file or a suffixless flow capture",
+    ):
+        read_capture(capture_path)
+
+    with pytest.raises(
+        ValueError,
+        match=r"unsupported capture file extension '.json'.*expected a \.flow file or a suffixless flow capture",
+    ):
+        read_capture(capture_path, requested_format="flow")
 
 
 def test_read_flow_capture_skips_flows_without_responses(tmp_path) -> None:

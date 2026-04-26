@@ -27,7 +27,7 @@ def main_callback() -> None:
 
 @app.command()
 def build(
-    capture_path: Annotated[Path, typer.Argument(help="Path to a .flow capture.")],
+    capture_path: Annotated[Path, typer.Argument(help="Path to a .flow capture or suffixless flow file.")],
     format: Annotated[
         CaptureFormat,
         typer.Option("--format", help="Capture input format."),
