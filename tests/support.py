@@ -18,31 +18,31 @@ def make_exchange(
     url: str,
     *,
     request_headers: dict[str, str] | None = None,
-    request_body: bytes = b"",
+    request_body: bytes = b'',
     response_headers: dict[str, str] | None = None,
     response_body: bytes = b'{"ok": true}',
     status: int = 200,
-    source_id: str = "1",
-    captured_at: str = "2026-04-11T09:15:00Z",
+    source_id: str = '1',
+    captured_at: str = '2026-04-11T09:15:00Z',
 ) -> dict[str, Any]:
     return normalize_exchange(
         {
-            "source": {
-                "format": "flow",
-                "source_path": "/tmp/sample.flow",
-                "capture_id": source_id,
-                "captured_at": captured_at,
+            'source': {
+                'format': 'flow',
+                'source_path': '/tmp/sample.flow',
+                'capture_id': source_id,
+                'captured_at': captured_at,
             },
-            "request": {
-                "method": method,
-                "url": url,
-                "headers": request_headers or {},
-                "body": request_body,
+            'request': {
+                'method': method,
+                'url': url,
+                'headers': request_headers or {},
+                'body': request_body,
             },
-            "response": {
-                "status": status,
-                "headers": response_headers or {"Content-Type": "application/json"},
-                "body": response_body,
+            'response': {
+                'status': status,
+                'headers': response_headers or {'Content-Type': 'application/json'},
+                'body': response_body,
             },
         }
     )
@@ -65,7 +65,7 @@ def run_module(
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", module_name, *args],
+        [sys.executable, '-m', module_name, *args],
         cwd=workspace,
         env=_workspace_env(workspace, env),
         capture_output=True,
@@ -80,7 +80,7 @@ def run_workspace_pytest(
     extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "pytest", str(target), "-q"],
+        [sys.executable, '-m', 'pytest', str(target), '-q'],
         cwd=workspace,
         env=_workspace_env(workspace, extra_env),
         capture_output=True,
@@ -89,32 +89,32 @@ def run_workspace_pytest(
 
 
 def write_flow_capture(path: Path, exchanges: list[dict[str, Any]]) -> None:
-    with path.open("wb") as handle:
+    with path.open('wb') as handle:
         writer = io.FlowWriter(handle)
         for exchange in exchanges:
-            request = exchange["request"]
-            response = exchange["response"]
+            request = exchange['request']
+            response = exchange['response']
             flow = http.HTTPFlow(
-                client_conn=connection.Client(peername=("127.0.0.1", 1111), sockname=("127.0.0.1", 8080)),
-                server_conn=connection.Server(address=(request["host"], request["port"])),
+                client_conn=connection.Client(peername=('127.0.0.1', 1111), sockname=('127.0.0.1', 8080)),
+                server_conn=connection.Server(address=(request['host'], request['port'])),
             )
             flow.request = http.Request.make(
-                request["method"],
-                request["url"],
-                content=bytes(request["body"]),
-                headers=request["headers"],
+                request['method'],
+                request['url'],
+                content=bytes(request['body']),
+                headers=request['headers'],
             )
             flow.response = http.Response.make(
-                int(response["status"]),
-                content=bytes(response["body"]),
-                headers=response["headers"],
+                int(response['status']),
+                content=bytes(response['body']),
+                headers=response['headers'],
             )
             writer.add(flow)
 
 
 def _workspace_env(workspace: Path, extra_env: dict[str, str] | None) -> dict[str, str]:
     command_env = os.environ.copy()
-    command_env["PYTHONPATH"] = str(workspace) + os.pathsep + command_env.get("PYTHONPATH", "")
+    command_env['PYTHONPATH'] = str(workspace) + os.pathsep + command_env.get('PYTHONPATH', '')
     if extra_env:
         command_env.update(extra_env)
     return command_env

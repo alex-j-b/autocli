@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 from autocli.capture.normalize import decode_body_bytes
-from autocli.headers import is_session_sensitive_header, strip_session_sensitive_headers
+from autocli.headers import strip_session_sensitive_headers
 
 
 def compile_command_candidates(exchanges: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -21,23 +21,31 @@ def compile_command_candidates(exchanges: list[dict[str, Any]]) -> list[dict[str
 def infer_command_schema(grouped_exchange: dict[str, Any]) -> dict[str, Any]:
     """Infer shallow transport schema and first-pass CLI arguments."""
 
-    samples = list(grouped_exchange["samples"])
+    samples = list(grouped_exchange['samples'])
     request_headers = base_request_headers(samples)
     query_schema = infer_object_schema(
-        [coerce_scalar_mapping(sample["request"]["query"]) for sample in samples],
+        [coerce_scalar_mapping(sample['request']['query']) for sample in samples],
         parse_string_values=True,
     )
     headers_schema = infer_object_schema(
-        [coerce_scalar_mapping(strip_session_sensitive_headers(sample["request"]["headers"])) for sample in samples],
+        [coerce_scalar_mapping(strip_session_sensitive_headers(sample['request']['headers'])) for sample in samples],
         parse_string_values=False,
     )
 
-    decoded_bodies = [decode_body_bytes(sample["request"]["body"], sample["request"].get("media_type")) for sample in samples]
+    decoded_bodies = [
+        decode_body_bytes(sample['request']['body'], sample['request'].get('media_type')) for sample in samples
+    ]
     body_objects = [body for body in decoded_bodies if isinstance(body, dict)]
-    body_schema = infer_object_schema(body_objects, parse_string_values=True) if body_objects else infer_non_object_body_schema(decoded_bodies)
+    body_schema = (
+        infer_object_schema(body_objects, parse_string_values=True)
+        if body_objects
+        else infer_non_object_body_schema(decoded_bodies)
+    )
 
     base_query: dict[str, Any] = {}
-    base_body: dict[str, Any] | str | int | float | bool | None = {} if body_objects else copy.deepcopy(decoded_bodies[0])
+    base_body: dict[str, Any] | str | int | float | bool | None = (
+        {} if body_objects else copy.deepcopy(decoded_bodies[0])
+    )
     arguments: list[dict[str, Any]] = []
     request_mapping: dict[str, Any] = {}
 
@@ -46,40 +54,40 @@ def infer_command_schema(grouped_exchange: dict[str, Any]) -> dict[str, Any]:
     request_mapping.update(path_request_mapping)
 
     query_inference = infer_scalar_mapping_fields(
-        [coerce_scalar_mapping(sample["request"]["query"]) for sample in samples],
-        target_prefix="request.query",
+        [coerce_scalar_mapping(sample['request']['query']) for sample in samples],
+        target_prefix='request.query',
     )
-    arguments.extend(query_inference["arguments"])
-    request_mapping.update(query_inference["request_mapping"])
+    arguments.extend(query_inference['arguments'])
+    request_mapping.update(query_inference['request_mapping'])
 
     if body_objects:
         body_inference = infer_body_fields(body_objects)
-        arguments.extend(body_inference["arguments"])
-        request_mapping.update(body_inference["request_mapping"])
-        base_body = body_inference["base"]
+        arguments.extend(body_inference['arguments'])
+        request_mapping.update(body_inference['request_mapping'])
+        base_body = body_inference['base']
 
     return {
-        "id": grouped_exchange["command_id"],
-        "cli_path": list(grouped_exchange["cli_path"]),
-        "summary": grouped_exchange["summary"],
-        "cli_path_conflict": grouped_exchange["cli_path_conflict"],
-        "samples": list(grouped_exchange["samples"]),
-        "request": {
-            "method": grouped_exchange["method"].upper(),
-            "url_template": grouped_exchange["url_template"],
-            "path_template": grouped_exchange["path_template"],
-            "path_shape": copy.deepcopy(grouped_exchange["path_shape"]),
-            "params": {},
-            "query": base_query,
-            "headers": request_headers,
-            "cookies": {},
-            "body": base_body,
-            "query_schema": query_schema,
-            "headers_schema": headers_schema,
-            "body_schema": body_schema,
+        'id': grouped_exchange['command_id'],
+        'cli_path': list(grouped_exchange['cli_path']),
+        'summary': grouped_exchange['summary'],
+        'cli_path_conflict': grouped_exchange['cli_path_conflict'],
+        'samples': list(grouped_exchange['samples']),
+        'request': {
+            'method': grouped_exchange['method'].upper(),
+            'url_template': grouped_exchange['url_template'],
+            'path_template': grouped_exchange['path_template'],
+            'path_shape': copy.deepcopy(grouped_exchange['path_shape']),
+            'params': {},
+            'query': base_query,
+            'headers': request_headers,
+            'cookies': {},
+            'body': base_body,
+            'query_schema': query_schema,
+            'headers_schema': headers_schema,
+            'body_schema': body_schema,
         },
-        "arguments": arguments,
-        "request_mapping": request_mapping,
+        'arguments': arguments,
+        'request_mapping': request_mapping,
     }
 
 
@@ -88,29 +96,28 @@ def infer_path_arguments(grouped_exchange: dict[str, Any]) -> tuple[list[dict[st
 
     arguments: list[dict[str, Any]] = []
     request_mapping: dict[str, Any] = {}
-    path_shape = list(grouped_exchange["path_shape"])
+    path_shape = list(grouped_exchange['path_shape'])
     path_samples = [
-        [segment for segment in sample["canonical"]["path_segments"]]
-        for sample in grouped_exchange["samples"]
+        [segment for segment in sample['canonical']['path_segments']] for sample in grouped_exchange['samples']
     ]
 
     for index, segment in enumerate(path_shape):
-        if segment["kind"] != "parameter":
+        if segment['kind'] != 'parameter':
             continue
         values = [parse_scalar_value(sample_segments[index]) for sample_segments in path_samples]
         argument_type = infer_argument_type(values)
-        python_name = segment["value"]
+        python_name = segment['value']
         arguments.append(
             {
-                "name": python_name.replace("_", "-"),
-                "python_name": python_name,
-                "kind": "argument",
-                "type": argument_type,
-                "required": True,
-                "help": f"Path parameter {python_name}.",
+                'name': python_name.replace('_', '-'),
+                'python_name': python_name,
+                'kind': 'argument',
+                'type': argument_type,
+                'required': True,
+                'help': f'Path parameter {python_name}.',
             }
         )
-        request_mapping[f"request.params.{python_name}"] = f"args.{python_name}"
+        request_mapping[f'request.params.{python_name}'] = f'args.{python_name}'
     return arguments, request_mapping
 
 
@@ -139,25 +146,25 @@ def infer_scalar_mapping_fields(samples: list[dict[str, Any]], *, target_prefix:
 
         distinct_values = distinct_preserving_order(observed)
         if len(distinct_values) == 1 and not missing:
-            request_mapping[f"{target_prefix}.{field_name}"] = distinct_values[0]
+            request_mapping[f'{target_prefix}.{field_name}'] = distinct_values[0]
             continue
 
         option_name, python_name = make_argument_names(field_name)
         argument: dict[str, Any] = {
-            "name": option_name,
-            "python_name": python_name,
-            "kind": "option",
-            "type": infer_argument_type(observed),
-            "required": not missing,
-            "help": f"{field_name} request value.",
+            'name': option_name,
+            'python_name': python_name,
+            'kind': 'option',
+            'type': infer_argument_type(observed),
+            'required': not missing,
+            'help': f'{field_name} request value.',
         }
         arguments.append(argument)
-        request_mapping[f"{target_prefix}.{field_name}"] = f"args.{python_name}"
+        request_mapping[f'{target_prefix}.{field_name}'] = f'args.{python_name}'
 
     return {
-        "arguments": deduplicate_arguments(arguments),
-        "request_mapping": request_mapping,
-        "base": {},
+        'arguments': deduplicate_arguments(arguments),
+        'request_mapping': request_mapping,
+        'base': {},
     }
 
 
@@ -186,7 +193,7 @@ def infer_body_fields(bodies: list[dict[str, Any]]) -> dict[str, Any]:
             continue
 
         distinct_values = distinct_preserving_order(observed)
-        target = f"request.body.{field_name}"
+        target = f'request.body.{field_name}'
         if len(distinct_values) == 1 and not missing:
             request_mapping[target] = distinct_values[0]
             continue
@@ -194,28 +201,28 @@ def infer_body_fields(bodies: list[dict[str, Any]]) -> dict[str, Any]:
         option_name, python_name = make_argument_names(field_name)
         arguments.append(
             {
-                "name": option_name,
-                "python_name": python_name,
-                "kind": "option",
-                "type": infer_argument_type(observed),
-                "required": not missing,
-                "help": f"{field_name} request body value.",
+                'name': option_name,
+                'python_name': python_name,
+                'kind': 'option',
+                'type': infer_argument_type(observed),
+                'required': not missing,
+                'help': f'{field_name} request body value.',
             }
         )
-        request_mapping[target] = f"args.{python_name}"
+        request_mapping[target] = f'args.{python_name}'
 
     return {
-        "arguments": deduplicate_arguments(arguments),
-        "request_mapping": request_mapping,
-        "base": {},
+        'arguments': deduplicate_arguments(arguments),
+        'request_mapping': request_mapping,
+        'base': {},
     }
 
 
 def base_request_headers(samples: list[dict[str, Any]]) -> dict[str, Any]:
     """Build a literal base header set for the request template."""
 
-    representative_headers = dict(samples[0]["request"]["headers"])
-    for blocked_header in ("content-length", "host"):
+    representative_headers = dict(samples[0]['request']['headers'])
+    for blocked_header in ('content-length', 'host'):
         representative_headers.pop(blocked_header, None)
     return strip_session_sensitive_headers(representative_headers)
 
@@ -235,23 +242,23 @@ def infer_object_schema(samples: list[dict[str, Any]], *, parse_string_values: b
                 additional_properties = True
                 continue
             if isinstance(value, dict):
-                properties.setdefault(key, {"type": "object"})
+                properties.setdefault(key, {'type': 'object'})
                 additional_properties = True
                 continue
 
             inferred_type = infer_scalar_schema_type(parse_scalar_value(value) if parse_string_values else value)
             current = properties.get(key)
             if current is None:
-                properties[key] = {"type": inferred_type}
+                properties[key] = {'type': inferred_type}
                 continue
-            if current["type"] != inferred_type:
-                if {current["type"], inferred_type} <= {"integer", "number"}:
-                    current["type"] = "number"
+            if current['type'] != inferred_type:
+                if {current['type'], inferred_type} <= {'integer', 'number'}:
+                    current['type'] = 'number'
                 else:
                     additional_properties = True
 
-    schema: dict[str, Any] = {"type": "object", "properties": properties}
-    schema["additionalProperties"] = additional_properties
+    schema: dict[str, Any] = {'type': 'object', 'properties': properties}
+    schema['additionalProperties'] = additional_properties
     return schema
 
 
@@ -264,13 +271,13 @@ def infer_non_object_body_schema(bodies: list[Any]) -> dict[str, Any] | None:
     inferred_types = {infer_scalar_schema_type(body) for body in observed if not isinstance(body, (dict, list, bytes))}
     if not inferred_types:
         if any(isinstance(body, bytes) for body in observed):
-            return {"type": "string", "format": "binary"}
+            return {'type': 'string', 'format': 'binary'}
         return None
     if len(inferred_types) == 1:
-        return {"type": inferred_types.pop()}
-    if inferred_types <= {"integer", "number"}:
-        return {"type": "number"}
-    return {"type": "string"}
+        return {'type': inferred_types.pop()}
+    if inferred_types <= {'integer', 'number'}:
+        return {'type': 'number'}
+    return {'type': 'string'}
 
 
 def coerce_scalar_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
@@ -284,12 +291,12 @@ def coerce_scalar_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def flatten_scalar_leaves(value: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+def flatten_scalar_leaves(value: dict[str, Any], prefix: str = '') -> dict[str, Any]:
     """Flatten nested object leaves into dotted paths."""
 
     flattened: dict[str, Any] = {}
     for key, child in value.items():
-        path = f"{prefix}.{key}" if prefix else key
+        path = f'{prefix}.{key}' if prefix else key
         if isinstance(child, dict):
             flattened.update(flatten_scalar_leaves(child, path))
         elif isinstance(child, list):
@@ -305,14 +312,14 @@ def parse_scalar_value(value: Any) -> Any:
     if not isinstance(value, str):
         return value
     text = value.strip()
-    if text.lower() in {"true", "false"}:
-        return text.lower() == "true"
-    if re.fullmatch(r"-?\d+", text):
+    if text.lower() in {'true', 'false'}:
+        return text.lower() == 'true'
+    if re.fullmatch(r'-?\d+', text):
         try:
             return int(text)
         except ValueError:
             return value
-    if re.fullmatch(r"-?\d+\.\d+", text):
+    if re.fullmatch(r'-?\d+\.\d+', text):
         try:
             return float(text)
         except ValueError:
@@ -324,33 +331,33 @@ def infer_argument_type(values: list[Any]) -> str:
     """Infer the command argument type from sample values."""
 
     inferred_types = {infer_scalar_schema_type(value) for value in values}
-    if inferred_types == {"boolean"}:
-        return "boolean"
-    if inferred_types == {"integer"}:
-        return "integer"
-    if inferred_types <= {"integer", "number"}:
-        return "number"
-    return "string"
+    if inferred_types == {'boolean'}:
+        return 'boolean'
+    if inferred_types == {'integer'}:
+        return 'integer'
+    if inferred_types <= {'integer', 'number'}:
+        return 'number'
+    return 'string'
 
 
 def infer_scalar_schema_type(value: Any) -> str:
     """Infer a JSON-schema-like scalar type."""
 
     if isinstance(value, bool):
-        return "boolean"
+        return 'boolean'
     if isinstance(value, int) and not isinstance(value, bool):
-        return "integer"
+        return 'integer'
     if isinstance(value, float):
-        return "number"
-    return "string"
+        return 'number'
+    return 'string'
 
 
 def make_argument_names(field_name: str) -> tuple[str, str]:
     """Convert a field path into CLI and Python names."""
 
-    option_name = field_name.replace(".", "-").replace("_", "-")
-    option_name = re.sub(r"[^a-z0-9-]+", "-", option_name.lower()).strip("-")
-    python_name = option_name.replace("-", "_")
+    option_name = field_name.replace('.', '-').replace('_', '-')
+    option_name = re.sub(r'[^a-z0-9-]+', '-', option_name.lower()).strip('-')
+    python_name = option_name.replace('-', '_')
     return option_name, python_name
 
 
@@ -361,10 +368,10 @@ def deduplicate_arguments(arguments: list[dict[str, Any]]) -> list[dict[str, Any
     seen_python_names: set[str] = set()
     deduplicated: list[dict[str, Any]] = []
     for argument in arguments:
-        if argument["name"] in seen_option_names or argument["python_name"] in seen_python_names:
+        if argument['name'] in seen_option_names or argument['python_name'] in seen_python_names:
             continue
-        seen_option_names.add(argument["name"])
-        seen_python_names.add(argument["python_name"])
+        seen_option_names.add(argument['name'])
+        seen_python_names.add(argument['python_name'])
         deduplicated.append(argument)
     return deduplicated
 

@@ -7,19 +7,19 @@ from typing import Any
 
 SESSION_SENSITIVE_HEADER_NAMES = frozenset(
     {
-        "authorization",
-        "cookie",
-        "csrf-token",
-        "set-cookie",
-        "set-cookie2",
-        "x-csrf-token",
-        "x-requested-with",
-        "x-xsrf-token",
-        "xsrf-token",
+        'authorization',
+        'cookie',
+        'csrf-token',
+        'set-cookie',
+        'set-cookie2',
+        'x-csrf-token',
+        'x-requested-with',
+        'x-xsrf-token',
+        'xsrf-token',
     }
 )
-SESSION_SENSITIVE_HEADER_PREFIXES = ("sec-",)
-SESSION_SENSITIVE_HEADER_SUBSTRINGS = ("auth", "csrf", "session", "token")
+SESSION_SENSITIVE_HEADER_PREFIXES = ('sec-',)
+SESSION_SENSITIVE_HEADER_SUBSTRINGS = ('auth', 'csrf', 'session', 'token')
 
 
 def strip_session_sensitive_headers(headers: Mapping[str, Any]) -> dict[str, Any]:
