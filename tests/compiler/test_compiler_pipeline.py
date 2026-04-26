@@ -1,43 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
-
-from autocli.capture import normalize_exchange
 from autocli.compiler import compile_command_candidates, group_exchanges
-
-
-def make_exchange(
-    method: str,
-    url: str,
-    *,
-    request_headers: dict[str, str] | None = None,
-    request_body: bytes = b"",
-    response_headers: dict[str, str] | None = None,
-    response_body: bytes = b'{"ok": true}',
-    status: int = 200,
-    source_id: str = "1",
-) -> dict[str, Any]:
-    return normalize_exchange(
-        {
-            "source": {
-                "format": "flow",
-                "source_path": "/tmp/sample.flow",
-                "capture_id": source_id,
-                "captured_at": "2026-04-10T09:15:00Z",
-            },
-            "request": {
-                "method": method,
-                "url": url,
-                "headers": request_headers or {},
-                "body": request_body,
-            },
-            "response": {
-                "status": status,
-                "headers": response_headers or {"Content-Type": "application/json"},
-                "body": response_body,
-            },
-        }
-    )
+from tests.support import make_exchange
 
 
 def test_group_exchanges_derives_parameterized_templates_command_ids_and_cli_paths() -> None:

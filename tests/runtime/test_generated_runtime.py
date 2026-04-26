@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -12,83 +9,9 @@ from urllib.parse import parse_qs, urlparse
 
 import yaml
 
-from autocli.capture import normalize_exchange
-from autocli.compiler.schema import compile_command_candidates
-from autocli.scaffold import bootstrap_workspace
+from tests.support import build_workspace, make_exchange, run_module, run_workspace_pytest
 
 EMPTY_PLAYWRIGHT_HEADERS_JSON = json.dumps({"headers": {}}, separators=(",", ":"))
-
-
-def make_exchange(
-    method: str,
-    url: str,
-    *,
-    request_headers: dict[str, str] | None = None,
-    request_body: bytes = b"",
-    response_headers: dict[str, str] | None = None,
-    response_body: bytes = b'{"ok": true}',
-    status: int = 200,
-    source_id: str = "1",
-) -> dict[str, Any]:
-    return normalize_exchange(
-        {
-            "source": {
-                "format": "flow",
-                "source_path": "/tmp/sample.flow",
-                "capture_id": source_id,
-                "captured_at": "2026-04-11T09:15:00Z",
-            },
-            "request": {
-                "method": method,
-                "url": url,
-                "headers": request_headers or {},
-                "body": request_body,
-            },
-            "response": {
-                "status": status,
-                "headers": response_headers or {"Content-Type": "application/json"},
-                "body": response_body,
-            },
-        }
-    )
-
-
-def build_workspace(workspace: Path, exchanges: list[dict[str, Any]]) -> dict[str, Any]:
-    compiled_commands = compile_command_candidates(exchanges)
-    return bootstrap_workspace(workspace, compiled_commands=compiled_commands)
-
-
-def run_module(workspace: Path, module_name: str, args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    command_env = os.environ.copy()
-    command_env["PYTHONPATH"] = str(workspace) + os.pathsep + command_env.get("PYTHONPATH", "")
-    if env:
-        command_env.update(env)
-    return subprocess.run(
-        [sys.executable, "-m", module_name, *args],
-        cwd=workspace,
-        env=command_env,
-        capture_output=True,
-        text=True,
-    )
-
-
-def run_workspace_pytest(
-    workspace: Path,
-    target: Path,
-    *,
-    extra_env: dict[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    command_env = os.environ.copy()
-    command_env["PYTHONPATH"] = str(workspace) + os.pathsep + command_env.get("PYTHONPATH", "")
-    if extra_env:
-        command_env.update(extra_env)
-    return subprocess.run(
-        [sys.executable, "-m", "pytest", str(target), "-q"],
-        cwd=workspace,
-        env=command_env,
-        capture_output=True,
-        text=True,
-    )
 
 
 def read_command_complete(command_dir: Path) -> bool:
