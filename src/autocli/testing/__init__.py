@@ -1,2 +1,0 @@
-"""Generated-testing template helpers."""
-

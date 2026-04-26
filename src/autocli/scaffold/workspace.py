@@ -41,9 +41,10 @@ def bootstrap_workspace(
         config = derive_workspace_config(output_dir, compiled_commands, executable_name=executable_name)
         initialize_workspace(output_dir, config)
     else:
-        if executable_name is not None and derive_executable_name(config) != normalize_executable_name(executable_name):
+        installed_executable_name = str(config["executable_name"])
+        if executable_name is not None and installed_executable_name != normalize_executable_name(executable_name):
             raise ValueError(
-                f"{output_dir} already exists with installed executable name {derive_executable_name(config)!r}. "
+                f"{output_dir} already exists with installed executable name {installed_executable_name!r}. "
                 "Remove the workspace to recreate it with a different --executable-name."
             )
         ensure_workspace_scaffold(output_dir, config)
@@ -184,10 +185,11 @@ def initialize_workspace(output_dir: Path, config: dict[str, Any]) -> None:
     """Create the workspace root structure on first bootstrap."""
 
     pyproject_path = output_dir / "pyproject.toml"
+    executable_name = str(config["executable_name"])
     write_text_file(
         pyproject_path,
         render_workspace_pyproject(
-            executable_name=derive_executable_name(config),
+            executable_name=executable_name,
             site_slug=str(config["site_slug"]),
             site_module=str(config["site_module"]),
             primary_hosts=list(config["primary_hosts"]),
@@ -203,6 +205,7 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
     commands_dir = output_dir / str(config["command_root"])
     site_dir = output_dir / str(config["site_module"])
     build_cli_skill_path = output_dir / "skills" / "build-cli" / "SKILL.md"
+    executable_name = str(config["executable_name"])
 
     shared_dir.mkdir(parents=True, exist_ok=True)
     commands_dir.mkdir(parents=True, exist_ok=True)
@@ -214,7 +217,7 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
         output_dir / "AGENTS.md",
         render_agents_md(
             site_module=str(config["site_module"]),
-            executable_name=derive_executable_name(config),
+            executable_name=executable_name,
             command_root=str(config["command_root"]),
         ),
     )
@@ -224,12 +227,6 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
     write_text_if_missing(output_dir / ".env.example", render_workspace_env_example())
     for relative_path, content in render_site_package(str(config["site_slug"])).items():
         write_text_if_missing(site_dir / relative_path, content)
-
-
-def derive_executable_name(config: dict[str, Any]) -> str:
-    """Derive the generated installed executable name from workspace config."""
-
-    return str(config["executable_name"])
 
 
 def write_command_tree(output_dir: Path, config: dict[str, Any], command: dict[str, Any]) -> None:

@@ -7,9 +7,7 @@ from typing import Any
 
 import yaml
 
-from autocli.runtime.templates import render_cli_module, render_package_init, render_package_main, render_runtime_module
 from autocli.templating import render_template
-from autocli.testing.templates import render_command_test, render_testing_module
 
 WORKSPACE_RUNTIME_DEPENDENCIES = [
     "httpx>=0.27,<1",
@@ -24,6 +22,13 @@ WORKSPACE_RUNTIME_DEPENDENCIES = [
 WORKSPACE_DEV_DEPENDENCIES = [
     "pytest>=8.3,<9",
 ]
+
+SITE_PACKAGE_TEMPLATE_PATHS = {
+    "__init__.py": "runtime/package_init.py.j2",
+    "__main__.py": "runtime/package_main.py.j2",
+    "cli.py": "runtime/cli.py.j2",
+    "testing.py": "testing/testing.py.j2",
+}
 
 
 def render_workspace_gitignore() -> str:
@@ -97,11 +102,10 @@ def render_site_package(site_slug: str) -> dict[str, str]:
     """Render the generated site package modules."""
 
     return {
-        "__init__.py": render_package_init(),
-        "__main__.py": render_package_main(),
-        "cli.py": render_cli_module(),
-        "runtime.py": render_runtime_module(site_slug),
-        "testing.py": render_testing_module(),
+        relative_path: render_template(template_path)
+        for relative_path, template_path in SITE_PACKAGE_TEMPLATE_PATHS.items()
+    } | {
+        "runtime.py": render_template("runtime/runtime.py.j2", site_slug=site_slug),
     }
 
 
@@ -114,7 +118,7 @@ def render_command_module(command_spec: dict[str, Any], *, site_module: str) -> 
         "processors/pre.py": render_processor_stub("pre"),
         "processors/post.py": render_processor_stub("post"),
         "tests/__init__.py": "",
-        "tests/test_command.py": render_command_test(site_module),
+        "tests/test_command.py": render_template("testing/command_test.py.j2", site_module=site_module),
     }
 
 

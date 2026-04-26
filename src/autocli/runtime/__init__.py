@@ -1,2 +1,0 @@
-"""Generated-runtime template helpers."""
-
