@@ -6,5 +6,11 @@ from pathlib import Path
 
 from .runtime import build_app
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
-app = build_app(WORKSPACE_ROOT)
+
+def discover_workspace_root() -> Path:
+    """Locate package resources for the generated CLI workspace."""
+
+    return Path(__file__).resolve().parents[1]
+
+
+app = build_app(discover_workspace_root())

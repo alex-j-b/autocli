@@ -156,8 +156,8 @@ The first build must target an empty output directory. Later runs into the same 
 - Running a command's generated contract test updates its completion flag.
 - Only completed commands are registered in normal CLI help and execution.
 - Generated tests stay offline: they call the generated CLI with `--replay`, which uses fixture responses instead of making network calls.
-- Session-sensitive headers are never stored in fixtures; supply them through `PLAYWRIGHT_HEADERS_JSON`, usually via `.env`.
-- The generated runtime loads `.env` from the workspace root automatically, and shell environment variables win over `.env`.
+- Session-sensitive headers are never stored in fixtures; store them in the system keyring with `<workspace_cli> auth store-headers`.
+- `PLAYWRIGHT_HEADERS_JSON` remains available as a process environment override for manual or CI runs.
 - `--raw` returns the unprocessed response body.
 - `--replay` is only available when `AUTOCLI_TEST_MODE=true`.
 

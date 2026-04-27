@@ -11,9 +11,9 @@ from autocli.templating import render_template
 
 WORKSPACE_RUNTIME_DEPENDENCIES = [
     'httpx>=0.27,<1',
+    'keyring>=25,<26',
     'msgpack>=1,<2',
     'pydantic>=2.8,<3',
-    'python-dotenv>=1,<2',
     'PyYAML>=6,<7',
     'rich>=13.7,<14',
     'typer>=0.16,<1',
@@ -74,18 +74,6 @@ def render_build_cli_skill() -> str:
     return render_template('scaffold/build_cli_skill.md.j2')
 
 
-def render_workspace_env() -> str:
-    """Render the generated workspace ``.env`` placeholder."""
-
-    return render_template('scaffold/workspace_env.j2')
-
-
-def render_workspace_env_example() -> str:
-    """Render the generated workspace ``.env.example`` placeholder."""
-
-    return render_template('scaffold/workspace_env.j2')
-
-
 def normalize_executable_name(raw_name: str, *, fallback: str | None = None) -> str:
     """Normalize an installed executable name into a console-script-safe token."""
 
@@ -98,14 +86,18 @@ def normalize_executable_name(raw_name: str, *, fallback: str | None = None) -> 
     return fallback_name or 'generated-cli'
 
 
-def render_site_package(site_slug: str) -> dict[str, str]:
+def render_site_package(site_slug: str, *, keyring_service: str) -> dict[str, str]:
     """Render the generated site package modules."""
 
     return {
         relative_path: render_template(template_path)
         for relative_path, template_path in SITE_PACKAGE_TEMPLATE_PATHS.items()
     } | {
-        'runtime.py': render_template('runtime/runtime.py.j2', site_slug=site_slug),
+        'runtime.py': render_template(
+            'runtime/runtime.py.j2',
+            site_slug=site_slug,
+            keyring_service=keyring_service,
+        ),
     }
 
 

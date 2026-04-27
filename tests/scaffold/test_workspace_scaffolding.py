@@ -61,9 +61,9 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     }
     assert pyproject['project']['dependencies'] == [
         'httpx>=0.27,<1',
+        'keyring>=25,<26',
         'msgpack>=1,<2',
         'pydantic>=2.8,<3',
-        'python-dotenv>=1,<2',
         'PyYAML>=6,<7',
         'rich>=13.7,<14',
         'typer>=0.16,<1',
@@ -87,8 +87,8 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     assert (workspace / 'shared' / '__init__.py').exists()
     assert (workspace / 'commands' / '__init__.py').exists()
     assert (workspace / '.gitignore').read_text(encoding='utf-8') == render_workspace_gitignore()
-    assert (workspace / '.env').read_text(encoding='utf-8') == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
-    assert (workspace / '.env.example').read_text(encoding='utf-8') == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
+    assert not (workspace / '.env').exists()
+    assert not (workspace / '.env.example').exists()
     assert agents_path.exists()
     assert build_cli_skill_path.exists()
     assert (site_dir / '__init__.py').exists()
@@ -136,7 +136,6 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
         if line and not line.startswith('#')
     }
     assert {
-        '.env',
         '.autocli-playwright-storage-state.json',
         '__pycache__/',
         '*.py[cod]',
@@ -173,6 +172,8 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
 
     runtime_source = (site_dir / 'runtime.py').read_text(encoding='utf-8')
     assert 'def build_app(workspace_root: Path) -> typer.Typer:' in runtime_source
+    assert 'KEYRING_SERVICE = "workspace"' in runtime_source
+    assert 'load_dotenv' not in runtime_source
     testing_source = (site_dir / 'testing.py').read_text(encoding='utf-8')
     assert 'def run_command_contract(command_dir: Path) -> None:' in testing_source
     assert agents_path.read_text(encoding='utf-8') == render_agents_md(
@@ -214,8 +215,8 @@ def test_bootstrap_workspace_is_append_only_on_rerun(tmp_path: Path) -> None:
     assert (workspace / 'AGENTS.md').exists()
     assert (workspace / 'skills' / 'build-cli' / 'SKILL.md').exists()
     assert (workspace / '.gitignore').exists()
-    assert (workspace / '.env').exists()
-    assert (workspace / '.env.example').exists()
+    assert not (workspace / '.env').exists()
+    assert not (workspace / '.env.example').exists()
     assert (
         workspace / 'commands' / 'get__h_shop_example_com__s_api__s_inventory__p_p1__s_full' / 'command.yaml'
     ).exists()

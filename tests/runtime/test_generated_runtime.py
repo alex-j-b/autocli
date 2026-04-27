@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -54,6 +57,44 @@ def install_json_processors_and_goldens(command_dir: Path, *, output_fields: lis
         payload = json.loads(fixture_response_body)
         golden_payload = {field: payload[field] for field in output_fields}
         (command_dir / golden_ref['path']).write_text(json.dumps(golden_payload, indent=2) + '\n', encoding='utf-8')
+
+
+def install_fake_keyring_backend(workspace: Path, *, read_path: Path, write_path: Path) -> dict[str, str]:
+    (workspace / 'fake_keyring_backend.py').write_text(
+        '\n'.join(
+            [
+                'from __future__ import annotations',
+                '',
+                'import os',
+                'from pathlib import Path',
+                '',
+                'from keyring.backend import KeyringBackend',
+                '',
+                '',
+                'class FileKeyring(KeyringBackend):',
+                '    priority = 1',
+                '',
+                '    def get_password(self, service: str, username: str) -> str | None:',
+                "        path = Path(os.environ['AUTOCLI_FAKE_KEYRING_READ'])",
+                '        if not path.exists():',
+                '            return None',
+                "        return path.read_text(encoding='utf-8')",
+                '',
+                '    def set_password(self, service: str, username: str, password: str) -> None:',
+                "        Path(os.environ['AUTOCLI_FAKE_KEYRING_WRITE']).write_text(password, encoding='utf-8')",
+                '',
+                '    def delete_password(self, service: str, username: str) -> None:',
+                '        raise NotImplementedError',
+                '',
+            ]
+        ),
+        encoding='utf-8',
+    )
+    return {
+        'PYTHON_KEYRING_BACKEND': 'fake_keyring_backend.FileKeyring',
+        'AUTOCLI_FAKE_KEYRING_READ': str(read_path),
+        'AUTOCLI_FAKE_KEYRING_WRITE': str(write_path),
+    }
 
 
 def rewrite_cli_path(command_dir: Path, cli_path: list[str]) -> None:
@@ -199,7 +240,7 @@ def test_generated_runtime_fixture_tests_replay_through_generated_cli_with_live_
     assert read_command_complete(command_dir) is True
 
 
-def test_generated_runtime_fixture_tests_use_scaffolded_dotenv_placeholder(tmp_path: Path) -> None:
+def test_generated_runtime_fixture_tests_do_not_need_auth_header_configuration(tmp_path: Path) -> None:
     workspace = tmp_path / 'workspace'
     result = build_workspace(
         workspace,
@@ -219,7 +260,8 @@ def test_generated_runtime_fixture_tests_use_scaffolded_dotenv_placeholder(tmp_p
     pytest_result = run_workspace_pytest(workspace, command_dir / 'tests' / 'test_command.py')
 
     assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
-    assert (workspace / '.env').read_text(encoding='utf-8') == 'PLAYWRIGHT_HEADERS_JSON={"headers":{}}\n'
+    assert not (workspace / '.env').exists()
+    assert not (workspace / '.env.example').exists()
     assert read_command_complete(command_dir) is True
 
 
@@ -422,7 +464,7 @@ def test_generated_runtime_preprocessor_headers_override_live_auth_headers(tmp_p
         server.stop()
 
 
-def test_generated_runtime_loads_playwright_headers_from_dotenv_with_shell_override(tmp_path: Path) -> None:
+def test_generated_runtime_loads_playwright_headers_from_keyring_with_env_override(tmp_path: Path) -> None:
     server = EchoCartServer()
     server.start()
     try:
@@ -460,25 +502,29 @@ def test_generated_runtime_loads_playwright_headers_from_dotenv_with_shell_overr
         )
         assert pytest_result.returncode == 0, pytest_result.stdout + pytest_result.stderr
 
-        dotenv_headers = {
+        keyring_headers = {
             'url': f'{base_url}/checkout/xhr',
             'method': 'GET',
             'resourceType': 'xhr',
             'capturedAt': '2026-04-24T20:46:23.572Z',
             'headers': {
-                'cookie': 'from=dotenv',
-                'x-xsrf-token': 'token-from-dotenv',
+                'cookie': 'from=keyring',
+                'x-xsrf-token': 'token-from-keyring',
             },
         }
-        (workspace / '.env').write_text(
-            'PLAYWRIGHT_HEADERS_JSON=' + json.dumps(dotenv_headers, separators=(',', ':')) + '\n',
-            encoding='utf-8',
+        keyring_file = tmp_path / 'keyring-secret.json'
+        keyring_file.write_text(json.dumps(keyring_headers, separators=(',', ':')), encoding='utf-8')
+        fake_env = install_fake_keyring_backend(
+            workspace,
+            read_path=keyring_file,
+            write_path=tmp_path / 'stored-secret.json',
         )
 
         live_result = run_module(
             workspace,
             module_name,
             ['cart', 'change', '789', '--format', 'json', '--delta', '3'],
+            env=fake_env,
         )
         assert live_result.returncode == 0, live_result.stderr
         assert json.loads(live_result.stdout) == {
@@ -487,8 +533,8 @@ def test_generated_runtime_loads_playwright_headers_from_dotenv_with_shell_overr
             'id': '789',
             'mode': 'soft',
         }
-        assert server.requests[-1]['headers']['x-xsrf-token'] == 'token-from-dotenv'
-        assert server.requests[-1]['headers']['cookie'] == 'from=dotenv'
+        assert server.requests[-1]['headers']['x-xsrf-token'] == 'token-from-keyring'
+        assert server.requests[-1]['headers']['cookie'] == 'from=keyring'
 
         shell_headers = {
             'url': f'{base_url}/checkout/xhr',
@@ -504,11 +550,33 @@ def test_generated_runtime_loads_playwright_headers_from_dotenv_with_shell_overr
             workspace,
             module_name,
             ['cart', 'change', '789', '--format', 'json', '--delta', '3'],
-            env={'PLAYWRIGHT_HEADERS_JSON': json.dumps(shell_headers, separators=(',', ':'))},
+            env=fake_env | {'PLAYWRIGHT_HEADERS_JSON': json.dumps(shell_headers, separators=(',', ':'))},
         )
         assert live_result.returncode == 0, live_result.stderr
         assert server.requests[-1]['headers']['x-xsrf-token'] == 'token-from-shell'
         assert server.requests[-1]['headers']['cookie'] == 'from=shell'
+
+        store_input = tmp_path / 'store-input.json'
+        store_input.write_text(json.dumps(shell_headers, separators=(',', ':')), encoding='utf-8')
+        store_result = subprocess.run(
+            [sys.executable, '-m', module_name, 'auth', 'store-headers', '--file', str(store_input)],
+            cwd=workspace,
+            env=os.environ.copy()
+            | {
+                'PYTHONPATH': str(workspace) + os.pathsep + os.environ.get('PYTHONPATH', ''),
+                **fake_env,
+            },
+            capture_output=True,
+            text=True,
+        )
+        assert store_result.returncode == 0, store_result.stderr
+        assert 'Stored authenticated header configuration in the system keyring' in store_result.stdout
+        assert 'token-from-shell' not in store_result.stdout
+        assert 'from=shell' not in store_result.stdout
+        assert (tmp_path / 'stored-secret.json').read_text(encoding='utf-8').strip() == json.dumps(
+            shell_headers,
+            separators=(',', ':'),
+        )
     finally:
         server.stop()
 

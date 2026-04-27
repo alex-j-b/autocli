@@ -20,14 +20,26 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 import httpx
+import keyring
 import msgpack
 import typer
 import yaml
-from dotenv import load_dotenv
+from keyring.errors import KeyringError, NoKeyringError
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 PLAYWRIGHT_HEADERS_JSON_ENV = "PLAYWRIGHT_HEADERS_JSON"
+KEYRING_SERVICE = "{{ keyring_service }}"
+KEYRING_ACCOUNT = "playwright-headers-json"
 TEST_MODE_ENV = "AUTOCLI_TEST_MODE"
+STORE_HEADERS_FILE_OPTION = typer.Option(
+    None,
+    "--file",
+    "-f",
+    exists=True,
+    dir_okay=False,
+    readable=True,
+    help="Read Playwright headers JSON from a file. Reads stdin when omitted.",
+)
 SESSION_SENSITIVE_HEADER_NAMES = {
     "authorization",
     "cookie",
@@ -531,7 +543,6 @@ def load_workspace_settings(workspace_root: Path) -> dict[str, object]:
 def build_app(workspace_root: Path) -> typer.Typer:
     """Build the generated site CLI app."""
 
-    load_dotenv(workspace_root / ".env", override=False)
     settings = load_workspace_settings(workspace_root)
     app = typer.Typer(
         add_completion=False,
@@ -543,6 +554,8 @@ def build_app(workspace_root: Path) -> typer.Typer:
     def main() -> None:
         """Generated site CLI root."""
 
+    register_auth_commands(app)
+
     test_mode = os.environ.get(TEST_MODE_ENV) == "true"
     valid_commands, warnings = discover_valid_commands(
         workspace_root,
@@ -552,6 +565,31 @@ def build_app(workspace_root: Path) -> typer.Typer:
         emit_runtime_warning(warning)
     register_valid_commands(app, workspace_root, valid_commands)
     return app
+
+
+def register_auth_commands(app: typer.Typer) -> None:
+    """Register local auth-management commands."""
+
+    auth_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Manage local authentication headers.")
+
+    @auth_app.command("store-headers")
+    def store_headers(
+        input_file: Path | None = STORE_HEADERS_FILE_OPTION,
+    ) -> None:
+        """Store Playwright headers JSON in the system keyring."""
+
+        try:
+            raw = input_file.read_text(encoding="utf-8") if input_file is not None else sys.stdin.read()
+            stored_header_count = store_playwright_headers_json(raw)
+        except Exception as exc:
+            typer.echo(summarize_exception(exc), err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(
+            f"Stored authenticated header configuration in the system keyring "
+            f"({stored_header_count} runtime header override(s))."
+        )
+
+    app.add_typer(auth_app, name="auth")
 
 
 def discover_valid_commands(
@@ -832,7 +870,7 @@ def execute_command(
 
     if fixture_id is None and replay_mode:
         fixture_id = single_replay_fixture_id(command_file)
-    apply_live_header_overrides(context, required=fixture_id is not None)
+    apply_live_header_overrides(context, required=False)
     context = ProcessorContextModel.model_validate(context).model_dump(mode="python")
 
     pre_processor = load_processor_callable(workspace_root, command_dir, command_file.command.processors.pre)
@@ -1165,25 +1203,73 @@ def load_live_header_overrides(*, required: bool = False) -> dict[str, str]:
 
     raw = os.environ.get(PLAYWRIGHT_HEADERS_JSON_ENV)
     if not raw:
+        raw = load_playwright_headers_json_from_keyring()
+    if not raw:
         if required:
-            raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} is required for generated fixture tests")
+            raise ValueError(
+                f"{PLAYWRIGHT_HEADERS_JSON_ENV} or system keyring item "
+                f"{KEYRING_SERVICE}/{KEYRING_ACCOUNT} is required"
+            )
         return {}
     return parse_playwright_header_overrides(raw)
+
+
+def store_playwright_headers_json(raw: str) -> int:
+    """Validate and store Playwright headers JSON in the system keyring."""
+
+    payload = parse_playwright_headers_payload(raw, source="Playwright headers JSON")
+    compact_payload = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+    overrides = extract_playwright_header_overrides(payload, source="Playwright headers JSON")
+    store_playwright_headers_json_in_keyring(compact_payload)
+    return len(overrides)
+
+
+def load_playwright_headers_json_from_keyring() -> str | None:
+    """Read Playwright headers JSON from the system keyring when available."""
+
+    try:
+        return keyring.get_password(KEYRING_SERVICE, KEYRING_ACCOUNT)
+    except KeyringError:
+        return None
+
+
+def store_playwright_headers_json_in_keyring(raw: str) -> None:
+    """Write Playwright headers JSON to the system keyring."""
+
+    try:
+        keyring.set_password(KEYRING_SERVICE, KEYRING_ACCOUNT, raw)
+    except NoKeyringError as exc:
+        raise ValueError("No usable system keyring backend is available") from exc
+    except KeyringError as exc:
+        raise ValueError("Failed to store authenticated header configuration in the system keyring") from exc
 
 
 def parse_playwright_header_overrides(raw: str) -> dict[str, str]:
     """Extract session-sensitive headers from Playwright request.allHeaders() JSON."""
 
+    payload = parse_playwright_headers_payload(raw, source=PLAYWRIGHT_HEADERS_JSON_ENV)
+    return extract_playwright_header_overrides(payload, source=PLAYWRIGHT_HEADERS_JSON_ENV)
+
+
+def parse_playwright_headers_payload(raw: str, *, source: str) -> dict[str, Any]:
+    """Parse Playwright request.allHeaders() JSON."""
+
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} must be a valid JSON object") from exc
+        raise ValueError(f"{source} must be a valid JSON object") from exc
 
     if not isinstance(payload, dict):
-        raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} must be a JSON object")
+        raise ValueError(f"{source} must be a JSON object")
+    return payload
+
+
+def extract_playwright_header_overrides(payload: dict[str, Any], *, source: str) -> dict[str, str]:
+    """Extract session-sensitive headers from a parsed Playwright headers payload."""
+
     headers = payload.get("headers")
     if not isinstance(headers, dict):
-        raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} must contain a headers object")
+        raise ValueError(f"{source} must contain a headers object")
 
     overrides: dict[str, str] = {}
     for name, value in headers.items():
@@ -1193,7 +1279,7 @@ def parse_playwright_header_overrides(raw: str) -> dict[str, str]:
         if not is_session_sensitive_header(header_name):
             continue
         if not isinstance(value, str):
-            raise ValueError(f"{PLAYWRIGHT_HEADERS_JSON_ENV} header {header_name!r} must be a string")
+            raise ValueError(f"{source} header {header_name!r} must be a string")
         overrides[header_name] = value
     return overrides
 

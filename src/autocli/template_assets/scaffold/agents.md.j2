@@ -16,8 +16,6 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - `{{ site_module }}/runtime.py`: workspace-local CLI runtime.
 - `{{ site_module }}/testing.py`: workspace-local contract test helpers.
 - `skills/build-cli/SKILL.md`: iterative workflow for developing this CLI with user feedback.
-- `.env`: local runtime environment. `PLAYWRIGHT_HEADERS_JSON` supply live-session headers.
-- `.env.example`: example environment file.
 
 ## Governing Principles
 
@@ -28,6 +26,7 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - Goldens must reflect intentionally approved post-processed JSON, not raw transport bodies.
 - Keep output schemas explicit and stable once approved.
 - If the response is HTML, parse it structurally when possible.
+- Session-sensitive headers should come from the system keyring or the `PLAYWRIGHT_HEADERS_JSON` process environment override, not persisted fixtures.
 
 ## Working With This Workspace
 
@@ -36,6 +35,19 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - Use `processors/post.py` for the command's JSON output contract.
 - Update goldens only when the output contract is intentionally changed.
 - Stay inside this generated workspace unless there is a clear blocker that only the parent `autocli` generator can fix.
+
+## Updating Live Session Headers
+
+Authenticated commands need fresh browser-session headers stored in the system keyring.
+
+- If headers are missing or stale, use Playwright to open the target site and ask the user to sign in when needed.
+- Wait for a representative authenticated request, then call `await request.allHeaders()` in Playwright.
+- Write `JSON.stringify({ headers })` to a temporary browser local-storage key such as `autocli.playwrightHeadersJson`.
+- Persist the browser context to the workspace-local `.autocli-playwright-storage-state.json` path.
+- Read that storage-state file locally, extract the temporary local-storage value, and pass it to `{{ executable_name }} auth store-headers` through stdin or `--file`.
+- Do not print cookies, authorization headers, CSRF/XSRF tokens, or full `PLAYWRIGHT_HEADERS_JSON` values in the conversation or logs.
+- Do not commit `.autocli-playwright-storage-state.json` or any captured private session values.
+- Keep session-sensitive values in the system keyring; do not copy them into fixtures, goldens, `command.yaml`, README examples, or tests.
 
 ## Common Failure Modes
 
@@ -51,3 +63,4 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - CLI help: `{{ executable_name }} --help` or `python -m {{ site_module }} --help`
 - Command help: `{{ executable_name }} <command path> --help`
 - Contract tests: `uv run pytest -q {{ command_root }}/<command_id>/tests/test_command.py`
+- Live authenticated runs can use the `PLAYWRIGHT_HEADERS_JSON` process environment override
