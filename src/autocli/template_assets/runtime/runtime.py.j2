@@ -19,6 +19,7 @@ from collections import defaultdict
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
+import click
 import httpx
 import keyring
 import msgpack
@@ -26,6 +27,7 @@ import typer
 import yaml
 from keyring.errors import KeyringError, NoKeyringError
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
+from typer.core import TyperGroup
 
 PLAYWRIGHT_HEADERS_JSON_ENV = "PLAYWRIGHT_HEADERS_JSON"
 KEYRING_SERVICE = "{{ keyring_service }}"
@@ -78,6 +80,62 @@ def validate_approved_golden(value: Any) -> JsonValue:
     """Validate an approved golden as a plain JSON value."""
 
     return APPROVED_GOLDEN_VALUE_ADAPTER.validate_python(value)
+
+
+class RecursiveHelpTyperGroup(TyperGroup):
+    """Show descendant leaf commands in group help output."""
+
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        immediate_names = super().list_commands(ctx)
+        if not ctx.resilient_parsing and ctx.invoked_subcommand is not None:
+            return immediate_names
+
+        command_names: list[str] = []
+        for name in immediate_names:
+            command = super().get_command(ctx, name)
+            if command is None or command.hidden:
+                continue
+            descendants = self._descendant_command_names(ctx, command, prefix=name)
+            command_names.extend(descendants or [name])
+        return command_names
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        command = super().get_command(ctx, cmd_name)
+        if command is not None:
+            return command
+        if " " not in cmd_name:
+            return None
+
+        resolved = self._resolve_descendant_command(ctx, cmd_name.split())
+        if resolved is None:
+            return None
+
+        command_alias = copy.copy(resolved)
+        command_alias.name = cmd_name
+        return command_alias
+
+    def _descendant_command_names(self, ctx: click.Context, command: click.Command, *, prefix: str) -> list[str]:
+        if not isinstance(command, click.Group):
+            return [prefix]
+
+        names: list[str] = []
+        for child_name in command.list_commands(ctx):
+            child = command.get_command(ctx, child_name)
+            if child is None or child.hidden:
+                continue
+            names.extend(self._descendant_command_names(ctx, child, prefix=f"{prefix} {child_name}"))
+        return names
+
+    def _resolve_descendant_command(self, ctx: click.Context, path: list[str]) -> click.Command | None:
+        command: click.Command = self
+        for name in path:
+            if not isinstance(command, click.Group):
+                return None
+            next_command = command.get_command(ctx, name)
+            if next_command is None or next_command.hidden:
+                return None
+            command = next_command
+        return command
 
 
 def _validate_command_id(value: str) -> str:
@@ -546,6 +604,7 @@ def build_app(workspace_root: Path) -> typer.Typer:
     settings = load_workspace_settings(workspace_root)
     app = typer.Typer(
         add_completion=False,
+        cls=RecursiveHelpTyperGroup,
         help=f"Generated CLI for {settings.get('project_name', settings.get('site_slug', '{{ site_slug }}'))}.",
         no_args_is_help=True,
     )
@@ -570,7 +629,12 @@ def build_app(workspace_root: Path) -> typer.Typer:
 def register_auth_commands(app: typer.Typer) -> None:
     """Register local auth-management commands."""
 
-    auth_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Manage local authentication headers.")
+    auth_app = typer.Typer(
+        add_completion=False,
+        cls=RecursiveHelpTyperGroup,
+        no_args_is_help=True,
+        help="Manage local authentication headers.",
+    )
 
     @auth_app.command("store-headers")
     def store_headers(
@@ -745,7 +809,7 @@ def get_or_create_group(groups: dict[tuple[str, ...], typer.Typer], path: list[s
     if key in groups:
         return groups[key]
     parent = get_or_create_group(groups, path[:-1])
-    sub_app = typer.Typer(add_completion=False, no_args_is_help=True)
+    sub_app = typer.Typer(add_completion=False, cls=RecursiveHelpTyperGroup, no_args_is_help=True)
     parent.add_typer(sub_app, name=path[-1])
     groups[key] = sub_app
     return sub_app

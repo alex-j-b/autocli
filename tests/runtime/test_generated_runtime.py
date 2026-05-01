@@ -103,6 +103,12 @@ def rewrite_cli_path(command_dir: Path, cli_path: list[str]) -> None:
     (command_dir / 'command.yaml').write_text(yaml.safe_dump(command_file, sort_keys=False), encoding='utf-8')
 
 
+def mark_command_complete(command_dir: Path) -> None:
+    command_file = yaml.safe_load((command_dir / 'command.yaml').read_text(encoding='utf-8'))
+    command_file['command']['complete'] = True
+    (command_dir / 'command.yaml').write_text(yaml.safe_dump(command_file, sort_keys=False), encoding='utf-8')
+
+
 class EchoCartServer:
     def __init__(self) -> None:
         self.requests: list[dict[str, Any]] = []
@@ -615,3 +621,64 @@ def test_generated_runtime_rejects_duplicate_cli_paths_after_validation(tmp_path
     assert help_result.returncode == 0
     assert 'dup' not in help_result.stdout
     assert 'reason=duplicate-cli-path' in help_result.stderr
+
+
+def test_generated_runtime_help_lists_descendant_commands(tmp_path: Path) -> None:
+    workspace = tmp_path / 'workspace'
+    result = build_workspace(
+        workspace,
+        [
+            make_exchange('GET', 'https://shop.example.com/api/products/123', source_id='1', response_body=b'{"id":"123"}'),
+            make_exchange('GET', 'https://shop.example.com/api/products/456', source_id='2', response_body=b'{"id":"456"}'),
+            make_exchange(
+                'GET',
+                'https://shop.example.com/api/products/123/reviews',
+                source_id='3',
+                response_body=b'{"id":"123"}',
+            ),
+            make_exchange(
+                'GET',
+                'https://shop.example.com/api/products/456/reviews',
+                source_id='4',
+                response_body=b'{"id":"456"}',
+            ),
+            make_exchange('GET', 'https://shop.example.com/api/orders/123', source_id='5', response_body=b'{"id":"123"}'),
+            make_exchange('GET', 'https://shop.example.com/api/orders/456', source_id='6', response_body=b'{"id":"456"}'),
+        ],
+    )
+
+    module_name = str(result['site_module'])
+    command_dirs = [workspace / 'commands' / command_id for command_id in result['created_command_ids']]
+    for command_dir in command_dirs:
+        install_json_processors_and_goldens(command_dir, output_fields=['id'])
+        mark_command_complete(command_dir)
+
+    command_by_path = {
+        yaml.safe_load((command_dir / 'command.yaml').read_text(encoding='utf-8'))['command']['request']['path_template']: command_dir
+        for command_dir in command_dirs
+    }
+    rewrite_cli_path(command_by_path['/api/products/{p1}'], ['products', 'get'])
+    rewrite_cli_path(command_by_path['/api/products/{p1}/reviews'], ['products', 'reviews', 'list'])
+    rewrite_cli_path(command_by_path['/api/orders/{p1}'], ['orders', 'get'])
+
+    root_help = run_module(workspace, module_name, ['--help'])
+    assert root_help.returncode == 0, root_help.stderr
+    assert 'products get' in root_help.stdout
+    assert 'products reviews list' in root_help.stdout
+    assert 'orders get' in root_help.stdout
+    assert 'auth store-headers' in root_help.stdout
+
+    products_help = run_module(workspace, module_name, ['products', '--help'])
+    assert products_help.returncode == 0, products_help.stderr
+    assert 'get' in products_help.stdout
+    assert 'reviews list' in products_help.stdout
+    assert 'orders get' not in products_help.stdout
+
+    replay_result = run_module(
+        workspace,
+        module_name,
+        ['products', 'reviews', 'list', '123', '--replay'],
+        env={'AUTOCLI_TEST_MODE': 'true'},
+    )
+    assert replay_result.returncode == 0, replay_result.stderr
+    assert json.loads(replay_result.stdout) == {'id': '123'}
