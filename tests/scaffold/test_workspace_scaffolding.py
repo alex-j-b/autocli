@@ -137,6 +137,7 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     }
     assert {
         '.autocli-playwright-storage-state.json',
+        'skills/authenticate/SKILL.md',
         '__pycache__/',
         '*.py[cod]',
         '.pytest_cache/',
