@@ -898,7 +898,7 @@ def build_callback_signature(command_file: CommandFileModel) -> inspect.Signatur
         inspect.Parameter(
             "replay",
             inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            default=typer.Option(False, "--replay", help="Replay a matching fixture instead of sending a live request."),
+            default=typer.Option(False, "--replay", hidden=True),
             annotation=bool,
         )
     )

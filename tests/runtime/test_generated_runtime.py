@@ -698,6 +698,10 @@ def test_generated_runtime_help_lists_descendant_commands(tmp_path: Path) -> Non
     assert 'reviews list' in products_help.stdout
     assert 'orders get' not in products_help.stdout
 
+    command_help = run_module(workspace, module_name, ['products', 'reviews', 'list', '--help'])
+    assert command_help.returncode == 0, command_help.stderr
+    assert '--replay' not in command_help.stdout
+
     replay_result = run_module(
         workspace,
         module_name,
