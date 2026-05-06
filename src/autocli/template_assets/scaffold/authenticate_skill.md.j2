@@ -1,0 +1,43 @@
+# Authenticate Skill
+
+Use this skill whenever authenticated commands need a fresh session or live-session headers.
+
+## Purpose
+
+This committed skill defines the generic authentication workflow for this CLI. User-specific or sensitive steps belong in git-ignored reference files under `skills/authenticate/references/`.
+
+## First Run: Create Local Auth References
+
+- The AI agent should drive the browser login flow: open the site, click, type, inspect pages, capture evidence, and try safe next steps.
+- The user should provide guidance only when the agent is blocked, uncertain, or needs human-only information such as an account choice, password-manager approval, MFA, or a one-time code.
+- Do not print passwords, cookies, authorization headers, CSRF/XSRF tokens, or full Playwright header JSON.
+- Write durable, user-specific authentication instructions to one or more files in `skills/authenticate/references/`, for example `skills/authenticate/references/local-auth.md`.
+- Keep reference files practical: account identifiers, password-manager item names, MFA retrieval routes, login page quirks, and verification commands.
+- Keep secrets out of reference files. Describe how to retrieve them, not the secret value.
+
+## Later Runs: Follow Local References
+
+- Read the relevant files in `skills/authenticate/references/` if they exist.
+- Most likely, the user is sleeping or away from the computer so you must follow the documented route in a fully autonomous manner.
+- Update the reference files when the actual login flow changes.
+
+## Playwright Header Capture Recipe
+
+Ensure the system keyring contains Playwright headers JSON that can access the target site. To capture fresh live-session headers without printing them in the conversation:
+
+1. In Playwright, wait for a representative authenticated request and call `await request.allHeaders()`.
+2. Write `JSON.stringify({ headers })` to a temporary local storage key such as `autocli.playwrightHeadersJson`.
+3. Persist the browser context to the generated workspace's absolute `.autocli-playwright-storage-state.json` path, for example:
+
+   ```js
+   await page.context().storageState({
+     path: "/absolute/path/to/generated-workspace/.autocli-playwright-storage-state.json",
+   });
+   ```
+
+4. Read the saved storage-state file locally, extract the temporary local storage value, and pass it to the generated CLI's `auth store-headers` command through stdin or `--file`.
+5. After the storage state has been written, remove the temporary local storage key:
+
+   ```js
+   localStorage.removeItem("autocli.playwrightHeadersJson");
+   ```

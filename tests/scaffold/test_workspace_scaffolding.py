@@ -11,7 +11,12 @@ from typer.testing import CliRunner
 from autocli.cli import app
 from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureRequestFileModel, FixtureResponseFileModel
 from autocli.scaffold import bootstrap_workspace
-from autocli.scaffold.render import render_agents_md, render_build_cli_skill, render_workspace_gitignore
+from autocli.scaffold.render import (
+    render_agents_md,
+    render_authenticate_skill,
+    render_build_cli_skill,
+    render_workspace_gitignore,
+)
 from tests.support import build_compiled_commands, make_exchange, write_flow_capture
 
 
@@ -84,6 +89,7 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     site_dir = workspace / 'shop_example_com'
     agents_path = workspace / 'AGENTS.md'
     build_cli_skill_path = workspace / 'skills' / 'build-cli' / 'SKILL.md'
+    authenticate_skill_path = workspace / 'skills' / 'authenticate' / 'SKILL.md'
     assert (workspace / 'shared' / '__init__.py').exists()
     assert (workspace / 'commands' / '__init__.py').exists()
     assert (workspace / '.gitignore').read_text(encoding='utf-8') == render_workspace_gitignore()
@@ -91,6 +97,8 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
     assert not (workspace / '.env.example').exists()
     assert agents_path.exists()
     assert build_cli_skill_path.exists()
+    assert authenticate_skill_path.exists()
+    assert (workspace / 'skills' / 'authenticate' / 'references' / '.gitkeep').exists()
     assert (site_dir / '__init__.py').exists()
     assert (site_dir / '__main__.py').exists()
     assert (site_dir / 'cli.py').exists()
@@ -136,8 +144,8 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
         if line and not line.startswith('#')
     }
     assert {
-        '.autocli-playwright-storage-state.json',
-        'skills/authenticate/SKILL.md',
+        'skills/authenticate/references/*',
+        '!skills/authenticate/references/.gitkeep',
         '__pycache__/',
         '*.py[cod]',
         '.pytest_cache/',
@@ -182,6 +190,7 @@ def test_bootstrap_workspace_creates_canonical_structure(tmp_path: Path) -> None
         executable_name='workspace',
     )
     assert build_cli_skill_path.read_text(encoding='utf-8') == render_build_cli_skill()
+    assert authenticate_skill_path.read_text(encoding='utf-8') == render_authenticate_skill()
 
 
 def test_bootstrap_workspace_is_append_only_on_rerun(tmp_path: Path) -> None:

@@ -6,15 +6,7 @@ Use this skill when shaping a generated `autocli` workspace into a user-approved
 
 - Initialize git for the workspace if it is not already initialized.
 - Make an initial commit before changing generated files when there is no existing history.
-- If authenticated commands are needed, work through the login flow with user assistance first: the AI agent should drive the browser, click, type, inspect pages, and capture evidence, while the user provides guidance only when the agent is blocked, uncertain, or needs human-only information.
-- Document the resulting end-to-end login route in `skills/authenticate/SKILL.md` as a local, git-ignored skill so later runs can authenticate as autonomously as possible.
-- Ensure the system keyring contains Playwright headers JSON that can access the target site. To capture fresh live-session headers without printing them in the conversation:
-  - In Playwright, wait for a representative authenticated request and call `await request.allHeaders()`.
-  - Write `JSON.stringify({ headers })` to a temporary local storage key such as `autocli.playwrightHeadersJson`.
-  - Persist the browser context to the generated workspace's absolute `.autocli-playwright-storage-state.json` path, for example `await page.context().storageState({ path: "/absolute/path/to/generated-workspace/.autocli-playwright-storage-state.json" })`.
-  - Read the saved storage-state file locally, extract the temporary local storage value, and pass it to the generated CLI's `auth store-headers` command through stdin or `--file`.
-  - After the storage state has been written, remove the temporary local storage key with `localStorage.removeItem("autocli.playwrightHeadersJson")`.
-- If `skills/authenticate/SKILL.md` already exists, load and follow it when headers are missing or stale.
+- If authenticated commands are needed, complete the instructions in `skills/authenticate/SKILL.md`. That skill covers both first-run human-assisted auth-flow creation and later autonomous authentication from local references.
 - Non-mutating requests may be used for discovery when they are useful for understanding the API or output shape.
 - Ask for explicit permission before calling mutating endpoints.
 - When endpoint safety is ambiguous, treat it as mutable and ask first.

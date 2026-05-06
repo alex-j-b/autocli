@@ -16,7 +16,8 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 - `{{ site_module }}/runtime.py`: workspace-local CLI runtime.
 - `{{ site_module }}/testing.py`: workspace-local contract test helpers.
 - `skills/build-cli/SKILL.md`: iterative workflow for developing this CLI with user feedback.
-- `skills/authenticate/SKILL.md`: optional local, git-ignored authentication workflow. Load it when authenticated commands need a fresh session.
+- `skills/authenticate/SKILL.md`: committed generic authentication workflow. Load it when authenticated commands need a fresh session.
+- `skills/authenticate/references/`: git-ignored local authentication notes such as account choices, password-manager routes, and MFA retrieval steps.
 
 ## Governing Principles
 
@@ -32,7 +33,7 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 ## Working With This Workspace
 
 - Use `skills/build-cli/SKILL.md` when the task is to improve, finish, or review the generated CLI.
-- Use `skills/authenticate/SKILL.md` when it exists and the task needs a fresh authenticated session or live-session header refresh.
+- Use `skills/authenticate/SKILL.md` when the task needs a fresh authenticated session or live-session header refresh.
 - Use `processors/pre.py` only for request-shaping behavior needed by live execution.
 - Use `processors/post.py` for the command's JSON output contract.
 - Update goldens only when the output contract is intentionally changed.
@@ -42,10 +43,10 @@ This is a generated `autocli` workspace. The parent `autocli` project generated 
 
 Authenticated commands need fresh browser-session headers stored in the system keyring.
 
-- If `skills/authenticate/SKILL.md` exists, load and follow it first.
-- If it does not exist, use `skills/build-cli/SKILL.md` to create a local authentication skill with the exact user-approved route for reaching an authenticated session and storing headers.
+- Load and follow `skills/authenticate/SKILL.md` first.
+- Store user-specific auth-flow notes under `skills/authenticate/references/`, not in the committed generic skill.
 - Do not print cookies, authorization headers, CSRF/XSRF tokens, or full `PLAYWRIGHT_HEADERS_JSON` values in the conversation or logs.
-- Do not commit `.autocli-playwright-storage-state.json`, `skills/authenticate/SKILL.md`, or any captured private session values.
+- Do not commit `skills/authenticate/references/*` or any captured private session values.
 - Keep session-sensitive values in the system keyring; do not copy them into fixtures, goldens, `command.yaml`, README examples, or tests.
 
 ## Common Failure Modes
@@ -61,5 +62,6 @@ Authenticated commands need fresh browser-session headers stored in the system k
 - Install CLI tool: `uv tool install --editable .`
 - CLI help: `{{ executable_name }} --help` or `python -m {{ site_module }} --help`
 - Command help: `{{ executable_name }} <command path> --help`
+- Auth instructions: `{{ executable_name }} auth instructions`
 - Contract tests: `uv run pytest -q {{ command_root }}/<command_id>/tests/test_command.py`
 - Live authenticated runs can use the `PLAYWRIGHT_HEADERS_JSON` process environment override

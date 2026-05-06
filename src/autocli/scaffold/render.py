@@ -74,6 +74,12 @@ def render_build_cli_skill() -> str:
     return render_template('scaffold/build_cli_skill.md.j2')
 
 
+def render_authenticate_skill() -> str:
+    """Render the generated workspace ``authenticate`` skill."""
+
+    return render_template('scaffold/authenticate_skill.md.j2')
+
+
 def normalize_executable_name(raw_name: str, *, fallback: str | None = None) -> str:
     """Normalize an installed executable name into a console-script-safe token."""
 

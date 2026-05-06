@@ -15,6 +15,7 @@ from autocli.models import CommandFileModel, FixtureMetaFileModel, FixtureReques
 from autocli.scaffold.render import (
     normalize_executable_name,
     render_agents_md,
+    render_authenticate_skill,
     render_build_cli_skill,
     render_command_module,
     render_site_package,
@@ -204,6 +205,7 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
     commands_dir = output_dir / str(config['command_root'])
     site_dir = output_dir / str(config['site_module'])
     build_cli_skill_path = output_dir / 'skills' / 'build-cli' / 'SKILL.md'
+    authenticate_skill_path = output_dir / 'skills' / 'authenticate' / 'SKILL.md'
     executable_name = str(config['executable_name'])
 
     shared_dir.mkdir(parents=True, exist_ok=True)
@@ -221,6 +223,8 @@ def ensure_workspace_scaffold(output_dir: Path, config: dict[str, Any]) -> None:
         ),
     )
     write_text_if_missing(build_cli_skill_path, render_build_cli_skill())
+    write_text_if_missing(authenticate_skill_path, render_authenticate_skill())
+    write_text_if_missing(output_dir / 'skills' / 'authenticate' / 'references' / '.gitkeep', '')
     write_text_if_missing(output_dir / '.gitignore', render_workspace_gitignore())
     for relative_path, content in render_site_package(
         str(config['site_slug']),

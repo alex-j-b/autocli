@@ -613,7 +613,7 @@ def build_app(workspace_root: Path) -> typer.Typer:
     def main() -> None:
         """Generated site CLI root."""
 
-    register_auth_commands(app)
+    register_auth_commands(app, workspace_root)
 
     test_mode = os.environ.get(TEST_MODE_ENV) == "true"
     valid_commands, warnings = discover_valid_commands(
@@ -626,7 +626,7 @@ def build_app(workspace_root: Path) -> typer.Typer:
     return app
 
 
-def register_auth_commands(app: typer.Typer) -> None:
+def register_auth_commands(app: typer.Typer, workspace_root: Path) -> None:
     """Register local auth-management commands."""
 
     auth_app = typer.Typer(
@@ -652,6 +652,18 @@ def register_auth_commands(app: typer.Typer) -> None:
             f"Stored authenticated header configuration in the system keyring "
             f"({stored_header_count} runtime header override(s))."
         )
+
+    @auth_app.command("instructions")
+    def instructions() -> None:
+        """Print the committed authentication workflow instructions."""
+
+        instructions_path = workspace_root / "skills" / "authenticate" / "SKILL.md"
+        try:
+            instructions_text = instructions_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            typer.echo(summarize_exception(exc), err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(instructions_text, nl=False)
 
     app.add_typer(auth_app, name="auth")
 

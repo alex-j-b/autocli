@@ -271,6 +271,30 @@ def test_generated_runtime_fixture_tests_do_not_need_auth_header_configuration(t
     assert read_command_complete(command_dir) is True
 
 
+def test_generated_runtime_auth_instructions_prints_authenticate_skill(tmp_path: Path) -> None:
+    workspace = tmp_path / 'workspace'
+    result = build_workspace(
+        workspace,
+        [
+            make_exchange(
+                'GET', 'https://shop.example.com/api/products/123', source_id='1', response_body=b'{"id":"123"}'
+            ),
+            make_exchange(
+                'GET', 'https://shop.example.com/api/products/456', source_id='2', response_body=b'{"id":"456"}'
+            ),
+        ],
+    )
+    module_name = str(result['site_module'])
+    skill_text = (workspace / 'skills' / 'authenticate' / 'SKILL.md').read_text(encoding='utf-8')
+
+    instructions_result = run_module(workspace, module_name, ['auth', 'instructions'])
+
+    assert instructions_result.returncode == 0, instructions_result.stderr
+    assert instructions_result.stdout == skill_text
+    assert 'skills/authenticate/references' in instructions_result.stdout
+    assert 'await request.allHeaders()' in instructions_result.stdout
+
+
 def test_generated_runtime_executes_live_request_mapping_and_raw_output(tmp_path: Path) -> None:
     server = EchoCartServer()
     server.start()
