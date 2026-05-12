@@ -79,14 +79,29 @@ uv run pytest -q commands/<command-id>/tests/test_command.py
 
 Use [`mitmweb`](https://docs.mitmproxy.org/stable/web-tutorials/web-01-user-interface/), mitmproxy's browser-based UI, to record and inspect browser traffic.
 
-If this is your first time using mitmproxy, follow the official [Getting Started](https://docs.mitmproxy.org/stable/overview/getting-started/) guide to configure your browser proxy and install the local certificate authority for HTTPS traffic.
+First-time setup: after `mitmweb` is running and your browser is using it as an HTTP(S) proxy, open `http://mitm.it` and install/trust the mitmproxy CA certificate for your OS/browser. This is required to decrypt HTTPS traffic; see mitmproxy's [certificate docs](https://docs.mitmproxy.org/stable/concepts/certificates/).
 
-Typical workflow:
+Typical macOS workflow:
 
-1. Start `mitmweb`.
-2. Perform the browser actions you want to turn into CLI commands.
-3. In the mitmweb UI, filter the traffic down to the requests you want to keep.
-4. Export the selected or filtered flows to `capture.flow`.
+1. Start `mitmweb`, limiting capture to the target host (e.g. `amazon.com`):
+
+   ```sh
+   mitmweb --listen-host 127.0.0.1 --listen-port 8080 --web-host 127.0.0.1 --web-port 8081 --allow-hosts '(^|\.)amazon\.com:443$'
+   ```
+
+2. Route Wi-Fi web traffic through mitmproxy:
+
+   ```sh
+   networksetup -setwebproxy "Wi-Fi" 127.0.0.1 8080 && networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 8080 && networksetup -setwebproxystate "Wi-Fi" on && networksetup -setsecurewebproxystate "Wi-Fi" on
+   ```
+
+3. Open the mitmweb UI at `http://127.0.0.1:8081`, perform the browser actions you want to turn into CLI commands, then filter out unrelated flows.
+4. In mitmweb, choose File -> Save filtered and save the result as `capture.flow`.
+5. When finished, disable the macOS proxy settings for Wi-Fi.
+
+   ```sh
+   networksetup -setwebproxy "Wi-Fi" 127.0.0.1 8080 && networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 8080 && networksetup -setwebproxystate "Wi-Fi" off && networksetup -setsecurewebproxystate "Wi-Fi" off
+   ```
 
 ### 2. Build a workspace
 
