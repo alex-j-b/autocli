@@ -166,15 +166,28 @@ The first build must target an empty output directory. Later runs into the same 
 
 ## 🧪 Generated Workspace Behavior
 
+Generated workspaces are editable CLI projects. They contain the generated runtime, command definitions, fixtures, processors, tests, and local agent guidance needed to refine a site-specific CLI.
+
+### Command lifecycle
+
 - Generated command names, arguments, and output shapes are a first pass, not the final UX.
 - Every generated command starts incomplete and is hidden from normal CLI discovery.
 - Running a command's generated contract test updates its completion flag.
 - Only completed commands are registered in normal CLI help and execution.
-- Generated tests stay offline: they call the generated CLI with `--replay`, which uses fixture responses instead of making network calls.
-- Session-sensitive headers are never stored in fixtures; store them in the system keyring with `<workspace_cli> auth store-headers`.
-- `PLAYWRIGHT_HEADERS_JSON` remains available as a process environment override for manual or CI runs.
 - `--raw` returns the unprocessed response body.
+
+### Testing and replay
+
+- Generated tests stay offline: they call the generated CLI with `--replay`, which uses fixture responses instead of making network calls.
 - `--replay` is only available when `AUTOCLI_TEST_MODE=true`.
+
+### Live authentication
+
+- Session-sensitive headers are stripped from generated fixtures and command definitions.
+- For normal live runs, store browser-session headers in the system keyring with `<workspace_cli> auth store-headers`.
+- The generated CLI reads those keyring headers at runtime and merges only session-sensitive headers into live requests.
+- `PLAYWRIGHT_HEADERS_JSON` is only a generated CLI runtime override. Use it for temporary manual runs or CI when the keyring is unavailable.
+- If both are present, `PLAYWRIGHT_HEADERS_JSON` takes precedence over the keyring.
 
 ## ⌨️ Command Reference
 
